@@ -1,0 +1,31 @@
+{
+	"name": "frag-connector",
+	"build": {
+		"context": "..",
+		"dockerfile": "Dockerfile"
+	},
+	"containerEnv": {
+		"TZ": "Asia/Tokyo"
+	},
+	"features": {
+		"ghcr.io/devcontainers-contrib/features/starship:1": {}
+	},
+	"customizations": {
+		"vscode": {
+			"settings": {
+				"python.defaultInterpreterPath": "${containerWorkspaceFolder}/.venv/bin/python"
+			},
+			"extensions": [
+				"ms-python.python",
+				"ms-python.vscode-pylance",
+				"ms-azuretools.vscode-docker",
+				"charliermarsh.ruff",
+				"ms-toolsai.jupyter",
+				"oderwat.indent-rainbow",
+				"tamasfe.even-better-toml"
+			]
+		}
+	},
+	"remoteUser": "vscode",
+	"postCreateCommand": "sudo chown -R vscode:vscode $CARGO_HOME"
+}
