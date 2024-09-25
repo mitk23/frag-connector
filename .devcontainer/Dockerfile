@@ -14,7 +14,7 @@ FROM mcr.microsoft.com/vscode/devcontainers/base:bookworm
 ENV CARGO_HOME="/opt/.cargo/bin"
 ENV PATH="$CARGO_HOME/:$PATH"
 
-COPY --from=builder /root/.cargo/bin/uv $CARGO_HOME/uv
+COPY --from=builder /root/.local/bin/uv $CARGO_HOME/uv
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1

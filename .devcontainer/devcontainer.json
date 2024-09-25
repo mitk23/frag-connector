@@ -27,5 +27,6 @@
 		}
 	},
 	"remoteUser": "vscode",
-	"postCreateCommand": "sudo chown -R vscode:vscode $CARGO_HOME"
+	"postCreateCommand": "sudo chown -R vscode:vscode $CARGO_HOME",
+	"postStartCommand": "uv sync"
 }
