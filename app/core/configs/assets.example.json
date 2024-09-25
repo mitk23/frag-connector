@@ -1,0 +1,11 @@
+{
+  "42012479-9acb-4e75-b606-0c948efea682": {
+    "id": "42012479-9acb-4e75-b606-0c948efea682",
+    "name": "example-asset",
+    "url": "http://localhost:8080",
+    "title": "Example Asset",
+    "description": "example asset",
+    "content_type": "text/plain",
+    "security": "public"
+  }
+}

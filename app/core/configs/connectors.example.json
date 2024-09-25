@@ -1,0 +1,8 @@
+{
+  "c7a3b5cc-70ad-4268-8d33-17404170df16": {
+    "id": "c7a3b5cc-70ad-4268-8d33-17404170df16",
+    "name": "example-connector",
+    "url": "http://localhost:8000/",
+    "trust": "low"
+  }
+}
