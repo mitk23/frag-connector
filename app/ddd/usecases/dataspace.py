@@ -1,18 +1,16 @@
-from typing import Any
-
-from core.exceptions import ConnectorException
+from core.exceptions import ConnectorException, InternalException
 from ddd.domains.asset import AssetId
 from ddd.domains.connector import ConnectorId
-from ddd.domains.dataspace import DataspaceAssetQueryServiceIF
+from ddd.domains.dataspace import DataspaceAssetCatalogQueryServiceIF
 from fastapi import status
 
-from .schemas.asset import AssetCatalogDto
+from .schemas.asset import AssetCatalogDto, DistributionContentDto
 from .schemas.knowledge import KnowledgeQueryDto
 
 
 class DataspaceUsecase:
-    def __init__(self, asset_query_service: DataspaceAssetQueryServiceIF):
-        self.__asset_query_service = asset_query_service
+    def __init__(self, asset_catalog_query_service: DataspaceAssetCatalogQueryServiceIF):
+        self.__asset_catalog_query_service = asset_catalog_query_service
 
     def __handle_error(
         self, description: str, status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR, error: Exception | None = None
@@ -20,12 +18,25 @@ class DataspaceUsecase:
         raise ConnectorException(status_code=status_code, description=description, upstream_exc=error)
 
     async def list_asset_catalogs(self, provider_id: str) -> dict[str, AssetCatalogDto]:
-        catalogs = await self.__asset_query_service.find_all(ConnectorId(value=provider_id))
+        try:
+            catalogs = await self.__asset_catalog_query_service.find_all(ConnectorId(value=provider_id))
+        except InternalException as exc:
+            self.__handle_error(description=f"Failed to fetch asset catalogs from provier [{provider_id}]", error=exc)
         return {str(_id): AssetCatalogDto.from_entity(catalog) for _id, catalog in catalogs.items()}
 
-    async def pull_asset(self, provider_id: str, asset_id: str) -> dict[str, Any]:
-        result = await self.__asset_query_service.pull(ConnectorId(value=provider_id), AssetId(value=asset_id))
-        return result
+    async def download_distribution(
+        self, provider_id: str, asset_id: str, distribution_title: str
+    ) -> DistributionContentDto:
+        try:
+            distribution_content = await self.__asset_catalog_query_service.download(
+                ConnectorId(value=provider_id), AssetId(value=asset_id), distribution_title
+            )
+        except InternalException as exc:
+            self.__handle_error(
+                description=f"Failed to download distribution [{distribution_title}] from provider [{provider_id}]",
+                error=exc,
+            )
+        return DistributionContentDto.from_entity(distribution_content)
 
     async def retrieve_documents(
         self, provider_id_list: list[str], knowledge_query: KnowledgeQueryDto, rerank_method: str

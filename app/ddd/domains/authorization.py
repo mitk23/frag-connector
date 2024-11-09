@@ -1,9 +1,9 @@
 import abc
 from typing import ClassVar, Literal
 
-from core.exceptions import InternalException
-from ddd.domains.asset import Asset, AssetId
+from ddd.domains.asset import Asset, AssetId, AssetSecurityLevel
 from ddd.domains.base import ValueObject
+from ddd.domains.connector import ConnectorId
 from pydantic import BaseModel
 
 
@@ -26,12 +26,39 @@ class Permission(BaseModel):
     name: str
     description: str | None = None
     resources: list[AssetId] | None = []
-    policies: list[str] | None = []
-    clients: list[str] | None = []
+    clients: list[ConnectorId] | None = []
     groups: list[str] | None = []
     roles: list[str] | None = []
     users: list[str] | None = []
-    decision_strategy: PermissionDecisionStrategy | None = PermissionDecisionStrategy.generate()
+    decision_strategy: PermissionDecisionStrategy | None = PermissionDecisionStrategy(
+        value=PermissionDecisionStrategy.UNANIMOUS
+    )
+
+
+class PermissionBySecurityLevel(Permission):
+    decision_strategy: PermissionDecisionStrategy | None = PermissionDecisionStrategy(
+        value=PermissionDecisionStrategy.AFFIRMATIVE
+    )
+
+    @staticmethod
+    def get_name(security_level: AssetSecurityLevel) -> str:
+        return f"permission-{str(security_level)}"
+
+    @staticmethod
+    def get_description(security_level: AssetSecurityLevel) -> str:
+        return f"Permission for {str(security_level)} resources"
+
+    @staticmethod
+    def generate(
+        security_level: AssetSecurityLevel, resources: list[AssetId], clients: list[ConnectorId]
+    ) -> "PermissionBySecurityLevel":
+        return PermissionBySecurityLevel(
+            id=None,
+            name=PermissionBySecurityLevel.get_name(security_level),
+            description=PermissionBySecurityLevel.get_description(security_level),
+            resources=resources,
+            clients=clients,
+        )
 
 
 class AuthConfig(BaseModel):
@@ -45,15 +72,6 @@ class AuthConfig(BaseModel):
 
 
 class AuthRepositoryIF(abc.ABC):
-    def __init__(self, config: AuthConfig):
-        self.server_url = config.server_url
-        self.realm_name = config.realm_name
-        self.username = config.username
-        self.password = config.password
-        self.client_id = config.client_id
-        self.client_secret = config.client_secret
-        self.grant_type = config.grant_type
-
     @abc.abstractmethod
     async def authenticate(self) -> str:
         raise NotImplementedError
@@ -89,6 +107,3 @@ class AuthRepositoryIF(abc.ABC):
     @abc.abstractmethod
     async def delete_permission(self, permission_id: str) -> None:
         raise NotImplementedError
-
-    def __handle_error(self, error: Exception, description: str):
-        raise InternalException(description=description, upstream_exc=error)

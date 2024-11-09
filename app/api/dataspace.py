@@ -4,31 +4,32 @@ from ddd.usecases.dataspace import DataspaceUsecase
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from pydantic import UUID4
-from schemas.management import AssetCatalogResponse
+from schemas.assets import AssetCatalogResponse
 
 router = APIRouter()
 
 
 @router.get("/catalogs", response_model=dict[str, AssetCatalogResponse])
 async def list_asset_catalogs(
-    provider_id: UUID4,
+    provider_id: str,
     dataspace_usecase: DataspaceUsecase = Depends(get_dataspace_usecase),
 ):
-    asset_catalogs = await dataspace_usecase.list_asset_catalogs(str(provider_id))
-    return {_id: AssetCatalogResponse.from_dict(catalog.model_dump()) for _id, catalog in asset_catalogs.items()}
+    asset_catalogs = await dataspace_usecase.list_asset_catalogs(provider_id)
+    return {
+        _id: AssetCatalogResponse.model_validate(catalog, from_attributes=True)
+        for _id, catalog in asset_catalogs.items()
+    }
 
 
 @router.get("/assets", response_class=StreamingResponse)
-async def pull_asset(
-    provider_id: UUID4,
+async def download_distribution(
+    provider_id: str,
     asset_id: UUID4,
+    distribution_title: str,
     dataspace_usecase: DataspaceUsecase = Depends(get_dataspace_usecase),
 ):
-    result = await dataspace_usecase.pull_asset(str(provider_id), str(asset_id))
-    content_type = result.get("content_type")
-    content = result.get("content")
-
-    return StreamingResponse(content=content, media_type=content_type)
+    distribution_content = await dataspace_usecase.download_distribution(provider_id, str(asset_id), distribution_title)
+    return StreamingResponse(content=distribution_content.stream, media_type=distribution_content.media_type)
 
 
 # @router.post("/retrieve")

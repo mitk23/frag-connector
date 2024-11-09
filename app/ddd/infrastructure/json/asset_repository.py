@@ -11,11 +11,14 @@ class JSONAssetRepository(AssetRepositoryIF):
         self.__json_config_path = json_config_path
         self.__assets = self.__load_config()
 
+    def __handle_error(self, description: str, error: Exception | None = None):
+        raise InternalException(description=description, upstream_exc=error)
+
     def __validate_json(self, obj: object) -> bool:
         try:
             json.dumps(obj)
         except (TypeError, ValueError) as err:
-            self.__handle_error(error=err, description="Invalid json object")
+            self.__handle_error(description="Invalid json object", error=err)
         return True
 
     def __load_config(self) -> dict[str, AssetDto]:
@@ -30,7 +33,7 @@ class JSONAssetRepository(AssetRepositoryIF):
         return assets_validated
 
     def __write_config(self, assets: dict[str, AssetDto]) -> None:
-        assets_serialized = {str(_id): asset.model_dump() for _id, asset in assets.items()}
+        assets_serialized = {str(_id): asset.model_dump(mode="json") for _id, asset in assets.items()}
 
         self.__validate_json(assets_serialized)
         try:
@@ -55,8 +58,7 @@ class JSONAssetRepository(AssetRepositoryIF):
         if asset.id is None:
             asset.id = AssetId.generate()
 
-        new_assets = {**self.__assets}
-        new_assets[str(asset.id)] = AssetDto.from_entity(asset)
+        new_assets = self.__assets | {str(asset.id): AssetDto.from_entity(asset)}
 
         self.__write_config(new_assets)
         return asset
@@ -67,6 +69,3 @@ class JSONAssetRepository(AssetRepositoryIF):
         if result is None:
             return
         self.__write_config(new_assets)
-
-    def __handle_error(self, error: Exception, description: str):
-        raise InternalException(description=description, upstream_exc=error)

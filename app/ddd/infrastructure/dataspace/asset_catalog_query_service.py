@@ -3,14 +3,14 @@ from typing import Any, AsyncGenerator
 
 import httpx
 from core.exceptions import InternalException
-from ddd.domains.asset import AssetCatalog, AssetId
+from ddd.domains.asset import AssetCatalog, AssetId, DistributionContent
 from ddd.domains.connector import ConnectorId, ConnectorRepositoryIF
-from ddd.domains.dataspace import DataspaceAssetQueryServiceIF
+from ddd.domains.dataspace import DataspaceAssetCatalogQueryServiceIF
 from ddd.usecases.schemas.asset import AssetCatalogDto
 from ddd.usecases.schemas.connector import ConnectorDto
 
 
-class DataspaceAssetQueryServiceImpl(DataspaceAssetQueryServiceIF):
+class DataspaceAssetCatalogQueryServiceImpl(DataspaceAssetCatalogQueryServiceIF):
     def __init__(
         self,
         dataspace_access_token: str,
@@ -30,11 +30,11 @@ class DataspaceAssetQueryServiceImpl(DataspaceAssetQueryServiceIF):
         provider_dto = ConnectorDto.from_entity(provider)
         return provider_dto.url
 
-    async def __get_find_endpoint(self, provider_id: ConnectorId):
+    async def __get_find_endpoint(self, provider_id: ConnectorId) -> str:
         provider_url = await self.__get_provider_url(provider_id)
         return provider_url + "api/inter-connector/catalogs"
 
-    async def __get_pull_endpoint(self, provider_id: ConnectorId, asset_id: AssetId):
+    async def __get_download_endpoint(self, provider_id: ConnectorId, asset_id: AssetId) -> str:
         provider_url = await self.__get_provider_url(provider_id)
         return provider_url + f"api/inter-connector/assets/{str(asset_id)}"
 
@@ -50,10 +50,12 @@ class DataspaceAssetQueryServiceImpl(DataspaceAssetQueryServiceIF):
                 self.__handle_error(error=err, description=f"Error in counter connector: {err.request.url!r}")
         return response.json()
 
-    async def __http_get_stream(self, url: str, headers: dict[str, Any]) -> AsyncGenerator[bytes, None]:
+    async def __http_get_stream(
+        self, url: str, headers: dict[str, Any], params: dict[str, Any]
+    ) -> AsyncGenerator[bytes, None]:
         # TODO: HTTPエラーオブジェクトの受け渡しの方法も考える（err.response.json()を表示できるようにしたい）
         async with httpx.AsyncClient() as client:
-            async with client.stream("GET", url=url, headers=headers) as response:
+            async with client.stream("GET", url=url, headers=headers, params=params) as response:
                 # first: status code
                 yield response.status_code
                 # second: content type
@@ -66,9 +68,12 @@ class DataspaceAssetQueryServiceImpl(DataspaceAssetQueryServiceIF):
     async def find_all(self, provider_id: ConnectorId) -> dict[AssetId, AssetCatalog]:
         find_endpoint = await self.__get_find_endpoint(provider_id)
 
-        asset_catalogs: dict[str, dict] = await self.__http_get(
-            find_endpoint, headers={"Authorization": f"Bearer {self.__dataspace_access_token}"}
-        )
+        try:
+            asset_catalogs: dict[str, dict] = await self.__http_get(
+                find_endpoint, headers={"Authorization": f"Bearer {self.__dataspace_access_token}"}
+            )
+        except InternalException as exc:
+            self.__handle_error(description="Failed to fetch asset catalogs from dataspace", error=exc)
 
         asset_catalog_entity_list = {
             AssetId(value=_id): AssetCatalogDto.model_validate(asset).to_entity()
@@ -87,11 +92,15 @@ class DataspaceAssetQueryServiceImpl(DataspaceAssetQueryServiceIF):
         asset_catalog_entity = AssetCatalogDto.model_validate(asset_catalog).to_entity()
         return asset_catalog_entity
 
-    async def pull(self, provider_id: ConnectorId, asset_id: AssetId) -> dict[str, Any]:
-        pull_endpoint = await self.__get_pull_endpoint(provider_id, asset_id)
+    async def download(
+        self, provider_id: ConnectorId, asset_id: AssetId, distribution_title: str
+    ) -> DistributionContent:
+        pull_endpoint = await self.__get_download_endpoint(provider_id, asset_id)
 
         content_stream = self.__http_get_stream(
-            pull_endpoint, headers={"Authorization": f"Bearer {self.__dataspace_access_token}"}
+            pull_endpoint,
+            headers={"Authorization": f"Bearer {self.__dataspace_access_token}"},
+            params={"distribution_title": distribution_title},
         )
 
         # 1. extract response status code from stream
@@ -101,7 +110,7 @@ class DataspaceAssetQueryServiceImpl(DataspaceAssetQueryServiceIF):
 
         # remainings in stream are content chunks
         if status_code == 200:
-            return {"content_type": content_type, "content": content_stream}
+            return DistributionContent(media_type=content_type, stream=content_stream)
         # error handling
         else:
             # decode error message from byte stream
@@ -118,6 +127,6 @@ class DataspaceAssetQueryServiceImpl(DataspaceAssetQueryServiceIF):
                 error_message = error_bytes.decode()
 
             self.__handle_error(
-                description="Failed to pull asset from counter connector",
+                description="Failed to download asset from counter connector",
                 error=InternalException(error_message),
             )

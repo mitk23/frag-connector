@@ -1,12 +1,11 @@
 import abc
-from typing import Any
 
-from ddd.domains.asset import AssetCatalog, AssetId
+from ddd.domains.asset import AssetCatalog, AssetId, DistributionContent
 from ddd.domains.connector import ConnectorId
 from ddd.domains.knowledge import Knowledge, KnowledgeQuery
 
 
-class DataspaceAssetQueryServiceIF(abc.ABC):
+class DataspaceAssetCatalogQueryServiceIF(abc.ABC):
     @abc.abstractmethod
     async def find_all(self, provider_id: ConnectorId) -> dict[AssetId, AssetCatalog]:
         raise NotImplementedError
@@ -16,7 +15,9 @@ class DataspaceAssetQueryServiceIF(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def pull(self, provider_id: ConnectorId, asset_id: AssetId) -> dict[str, Any]:
+    async def download(
+        self, provider_id: ConnectorId, asset_id: AssetId, distribution_title: str
+    ) -> DistributionContent:
         raise NotImplementedError
 
 

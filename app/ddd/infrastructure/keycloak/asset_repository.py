@@ -28,55 +28,60 @@ class KeycloakAssetRepository(AssetRepositoryIF):
         self.openid_client = self.__connection.keycloak_openid
         self.uma_client = KeycloakUMA(self.__connection)
 
-    def __handle_error(self, error: Exception, description: str):
+    def __handle_error(self, description: str, error: Exception | None = None):
         raise InternalException(description=description, upstream_exc=error)
 
+    async def __update(self, asset: AssetKeycloakDao) -> None:
+        # update request including `id` fails
+        asset_dict = asset.model_dump(exclude="id", exclude_none=True)
+
+        try:
+            await self.uma_client.a_resource_set_update(asset.id, asset_dict)
+        except KeycloakPutError as err:
+            self.__handle_error(description=f"Failed to update the asset [{asset.id}] on Keycloak", error=err)
+
+    async def __create(self, asset: AssetKeycloakDao) -> Asset:
+        asset_dict = asset.model_dump(exclude_none=True)
+
+        try:
+            _created_asset = await self.uma_client.a_resource_set_create(asset_dict)
+        except KeycloakPostError as err:
+            self.__handle_error(description="Failed to create the asset on Keycloak", error=err)
+
+        # attriutes are not included in Keyclok response, so re-query to get resource attributes
+        _created_asset_dao = AssetKeycloakDao.model_validate(_created_asset)
+        created_asset = await self.find_by_id(AssetId(value=_created_asset_dao.id))
+        return created_asset
+
     async def find_all(self) -> dict[AssetId, Asset]:
-        resource_list = await self.uma_client.a_resource_set_list()
-        resource_dao_list = [AssetKeycloakDao.model_validate(rs) for rs in resource_list]
-        resource_entity_list = [rs_dao.to_entity() for rs_dao in resource_dao_list]
-        return {asset.id: asset for asset in resource_entity_list}
+        # resource_list = await self.uma_client.a_resource_set_list()
+        # resource_dao_list = [AssetKeycloakDao.model_validate(rs) for rs in resource_list]
+        # resource_entity_list = [rs_dao.to_entity() for rs_dao in resource_dao_list]
+        # return {asset.id: asset for asset in resource_entity_list}
+        raise NotImplementedError
 
     async def find_by_id(self, _id: AssetId) -> Asset | None:
-        _id_str = str(_id)
         try:
-            resource = await self.uma_client.a_resource_set_read(_id_str)
-        except KeycloakGetError:
-            return None
+            resource = await self.uma_client.a_resource_set_read(str(_id))
+        except KeycloakGetError as err:
+            self.__handle_error(description="Failed to find the asset from Keycloak", error=err)
         return AssetKeycloakDao.model_validate(resource).to_entity()
 
     async def save(self, asset: Asset) -> Asset:
         asset_dao = AssetKeycloakDao.from_entity(asset)
 
         if asset_dao.id is not None:
-            try:
-                await self.uma_client.a_resource_set_update(
-                    asset_dao.id, asset_dao.model_dump(exclude="id", exclude_none=True)
-                )
-            except KeycloakPutError as err:
-                self.__handle_error(error=err, description=f"Failed to update the resource {asset_dao.id} on Keycloak")
+            await self.__update(asset_dao)
             return asset
 
-        # resources_with_same_name = self.uma_client.a_resource_set_list_ids(name=asset_dao.name, exact_name=True)
-        # if len(resources_with_same_name) > 0:
-        #     self.__handle_error(description=f"Resource `{asset_dao.name}` is already existed")
-
-        try:
-            _created_asset = await self.uma_client.a_resource_set_create(asset_dao.model_dump(exclude_none=True))
-        except KeycloakPostError as err:
-            self.__handle_error(error=err, description="Failed to create a new resource on Keycloak")
-
-        # attriutes are not included in Keyclok post response
-        # --> re-query to get resource attributes
-        _created_asset_id = AssetKeycloakDao.model_validate(_created_asset).to_entity().id
-        created_asset = await self.find_by_id(_created_asset_id)
+        created_asset = await self.__create(asset_dao)
         return created_asset
 
     async def delete(self, _id: AssetId) -> None:
         try:
             await self.uma_client.a_resource_set_delete(str(_id))
-        except KeycloakDeleteError:
-            return
+        except KeycloakDeleteError as err:
+            self.__handle_error(description="Failed to delete the asset from Keycloak", error=err)
 
 
 class JSONandKeycloakAssetRepository(AssetRepositoryIF):
@@ -84,7 +89,7 @@ class JSONandKeycloakAssetRepository(AssetRepositoryIF):
         self.__json_repository = JSONAssetRepository(json_config_path)
         self.__kc_repository = KeycloakAssetRepository(auth_config)
 
-    def __handle_error(self, error: Exception, description: str):
+    def __handle_error(self, description: str, error: Exception | None = None):
         raise InternalException(description=description, upstream_exc=error)
 
     async def find_all(self) -> dict[AssetId, Asset]:
@@ -95,14 +100,24 @@ class JSONandKeycloakAssetRepository(AssetRepositoryIF):
 
     async def save(self, asset: Asset) -> Asset:
         try:
-            kc_asset = await self.__kc_repository.save(asset)
+            saved_asset_on_keycloak = await self.__kc_repository.save(asset)
+            # some field are missing in the result from keycloak repository (ref: AssetKeycloakDao.to_entity())
+            asset_to_json = Asset(
+                id=saved_asset_on_keycloak.id,
+                title=saved_asset_on_keycloak.title,
+                description=saved_asset_on_keycloak.description,
+                usage_policy=asset.usage_policy,
+                distributions=asset.distributions,
+                vectors=asset.vectors
+            )
             try:
-                created_asset = await self.__json_repository.save(kc_asset)
+                saved_asset = await self.__json_repository.save(asset_to_json)
             except InternalException as exc:
-                self.__handle_error(description="Failed to create a new asset on JSON", error=exc)
+                self.__handle_error(description="Failed to save an asset on JSON", error=exc)
         except InternalException as exc:
-            self.__handle_error(description="Failed to create a new asset on Keycloak", error=exc)
-        return created_asset
+            self.__handle_error(description="Failed to save an asset on Keycloak", error=exc)
+
+        return saved_asset
 
     async def delete(self, _id: AssetId) -> None:
         await self.__kc_repository.delete(_id)

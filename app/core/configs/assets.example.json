@@ -1,11 +1,19 @@
 {
-  "42012479-9acb-4e75-b606-0c948efea682": {
-    "id": "42012479-9acb-4e75-b606-0c948efea682",
-    "name": "example-asset",
-    "url": "http://localhost:8080",
-    "title": "Example Asset",
+  "7955ab20-1e0a-4a83-bf79-0bd933792825": {
+    "title": "example-asset",
     "description": "example asset",
-    "content_type": "text/plain",
-    "security": "public"
+    "usage_policy": {
+      "security_level": "public"
+    },
+    "id": "7955ab20-1e0a-4a83-bf79-0bd933792825",
+    "distributions": [
+      {
+        "title": "example-asset-1",
+        "description": null,
+        "media_type": "text/plain",
+        "url": "http://localhost:8080"
+      }
+    ],
+    "vectors": null
   }
 }

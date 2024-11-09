@@ -11,7 +11,7 @@ class JSONConnectorRepository(ConnectorRepositoryIF):
         self.__json_config_path = json_config_path
         self.__connectors = self.__load_config()
 
-    def __handle_error(self, error: Exception, description: str):
+    def __handle_error(self, description: str, error: Exception | None = None):
         raise InternalException(description=description, upstream_exc=error)
 
     def __validate_json(self, obj: object) -> bool:
@@ -33,7 +33,7 @@ class JSONConnectorRepository(ConnectorRepositoryIF):
         return connectors_validated
 
     def __write_config(self, connectors: dict[str, ConnectorDto]) -> None:
-        connectors_serialized = {str(_id): connector.model_dump() for _id, connector in connectors.items()}
+        connectors_serialized = {_id: connector.model_dump() for _id, connector in connectors.items()}
 
         self.__validate_json(connectors_serialized)
         try:
@@ -54,12 +54,7 @@ class JSONConnectorRepository(ConnectorRepositoryIF):
         return self.__connectors.get(_id_str).to_entity()
 
     async def save(self, connector: Connector) -> Connector:
-        # assign a new ID
-        if connector.id is None:
-            connector.id = ConnectorId.generate()
-
-        new_connectors = {**self.__connectors}
-        new_connectors[str(connector.id)] = ConnectorDto.from_entity(connector)
+        new_connectors = self.__connectors | {str(connector.id): ConnectorDto.from_entity(connector)}
 
         self.__write_config(new_connectors)
         return connector

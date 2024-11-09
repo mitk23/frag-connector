@@ -10,7 +10,13 @@ from .authorization_model import PermissionKeycloakDao
 
 class KeycloakAuthRepository(AuthRepositoryIF):
     def __init__(self, config: AuthConfig):
-        super().__init__(config)
+        self.server_url = config.server_url
+        self.realm_name = config.realm_name
+        self.username = config.username
+        self.password = config.password
+        self.client_id = config.client_id
+        self.client_secret = config.client_secret
+        self.grant_type = config.grant_type
 
         self.__connection = KeycloakOpenIDConnection(
             server_url=self.server_url,
@@ -22,7 +28,7 @@ class KeycloakAuthRepository(AuthRepositoryIF):
         self.openid_client = self.__connection.keycloak_openid
         self.uma_client = KeycloakUMA(self.__connection)
 
-    def __handle_error(self, error: Exception, description: str):
+    def __handle_error(self, description: str, error: Exception | None = None):
         raise InternalException(description=description, upstream_exc=error)
 
     async def __is_my_token(self, token: str) -> bool:
@@ -43,23 +49,44 @@ class KeycloakAuthRepository(AuthRepositoryIF):
     async def __find_resources_associated_with_permission(self, permission_id: str) -> list[str]:
         resources_all = self.uma_client.a_resource_set_list()
 
-        result_resource_id_list = []
+        associated_resource_list = []
         async for resource in resources_all:
             rs_id = resource.get("_id")
             try:
                 rs_permission_list = await self.uma_client.a_policy_query(resource=rs_id, first=0, maximum=1)
             except KeycloakGetError as err:
                 self.__handle_error(
-                    error=err,
-                    description=f"Failed to query permissions associated with the resource {rs_id} to Keycloak)",
+                    error=err, description=f"Failed to get permissions of the resource [{rs_id}] from Keycloak)"
                 )
-
             if len(rs_permission_list) == 0:
                 continue
             if rs_permission_list[0].get("id") == permission_id:
-                result_resource_id_list.append(rs_id)
+                associated_resource_list.append(rs_id)
+        return associated_resource_list
 
-        return result_resource_id_list
+    async def __update(self, permission: PermissionKeycloakDao) -> None:
+        permission_dict = permission.model_dump(exclude_none=True)
+        try:
+            await self.uma_client.a_policy_update(permission.id, permission_dict)
+        except KeycloakPutError as err:
+            self.__handle_error(
+                description=f"Failed to update the permission [{permission.name}] on Keycloak", error=err
+            )
+
+    async def __create(self, permission: PermissionKeycloakDao) -> Permission:
+        permission_dict = permission.model_dump(exclude_none=True)
+
+        subject_resource_id = permission.resources[0]
+        try:
+            saved_permission = await self.uma_client.a_policy_resource_create(subject_resource_id, permission_dict)
+        except KeycloakPostError as err:
+            self.__handle_error(error=err, description="Failed to create a new permission on Keycloak")
+
+        # resources claim is not included in keycloak response
+        saved_permission_dao = PermissionKeycloakDao.model_validate(saved_permission)
+        saved_permission_dao.resources = permission.resources
+
+        return saved_permission_dao.to_entity()
 
     async def authenticate(self) -> str:
         token_response = await self.openid_client.a_token(grant_type=self.grant_type)
@@ -76,7 +103,7 @@ class KeycloakAuthRepository(AuthRepositoryIF):
         if await self.__is_my_token(token):
             return True
 
-        resource_name = resource.name
+        resource_name = resource.title
         auth_status: AuthStatus = await self.openid_client.a_has_uma_access(token, resource_name)
         return auth_status.is_authorized
 
@@ -84,14 +111,12 @@ class KeycloakAuthRepository(AuthRepositoryIF):
         if await self.__is_my_token(token):
             return set(resource_id_list)
 
-        _resource_id_list = [str(rs_id) for rs_id in resource_id_list]
-
         try:
             authorized_resource_list: list[dict[str, str]] = await self.openid_client.a_uma_permissions(
-                token, _resource_id_list
+                token, [str(rs_id) for rs_id in resource_id_list]
             )
         except KeycloakPostError as err:
-            self.__handle_error(error=err, description="Failed to get permissions from keycloak")
+            self.__handle_error(description="Failed to get permissions from keycloak", error=err)
 
         authorized_resource_id_list = [AssetId(value=rs_dict.get("rsid")) for rs_dict in authorized_resource_list]
         return set(authorized_resource_id_list)
@@ -103,33 +128,35 @@ class KeycloakAuthRepository(AuthRepositoryIF):
         try:
             permission_list = await self.uma_client.a_policy_query(name=permission_name, first=0, maximum=1)
         except KeycloakGetError as err:
-            self.__handle_error(error=err, description=f"Failed to query the permission {permission_name} to Keycloak)")
+            self.__handle_error(
+                description=f"Failed to get the permission [{permission_name}] from Keycloak", error=err
+            )
 
         if len(permission_list) == 0:
             return None
-
         permission_dao = PermissionKeycloakDao.model_validate(permission_list[0])
+
         # find resources associated with this permission as well
-        associated_resource_id_list = await self.__find_resources_associated_with_permission(permission_dao.id)
-        permission_dao.resources = associated_resource_id_list
+        # since policy query response from Keycloak does not include resources,
+        associated_resource_list = await self.__find_resources_associated_with_permission(permission_dao.id)
+        permission_dao.resources = associated_resource_list
 
         return permission_dao.to_entity()
 
     async def find_permission_by_resource_id(self, resource_id: AssetId) -> Permission | None:
         try:
-            resource_id_str = str(resource_id)
-            permission_list = await self.uma_client.a_policy_query(resource=resource_id_str, first=0, maximum=1)
+            permission_list = await self.uma_client.a_policy_query(resource=str(resource_id), first=0, maximum=1)
         except KeycloakGetError as err:
             self.__handle_error(
-                error=err,
-                description=f"Failed to query the permission associated with the resource {resource_id_str} to Keycloak)",
+                error=err, description=f"Failed to get permissions of the resource [{str(resource_id)}] from Keycloak"
             )
 
         if len(permission_list) == 0:
             return None
-
         permission_dao = PermissionKeycloakDao.model_validate(permission_list[0])
+
         # find resources associated with this permission as well
+        # since policy query response from Keycloak does not include resources,
         associated_resource_id_list = await self.__find_resources_associated_with_permission(permission_dao.id)
         permission_dao.resources = associated_resource_id_list
 
@@ -137,37 +164,22 @@ class KeycloakAuthRepository(AuthRepositoryIF):
 
     async def save_permission(self, permission: Permission) -> Permission:
         permission_dao = PermissionKeycloakDao.from_entity(permission)
+        # guarantee self client id is included in permission clients
+        permission_dao.clients.append(self.client_id)
 
+        # check if permission with same name is already existed
         permission_existed = await self.find_permission_by_name(permission_dao.name)
         if permission_existed is not None:
             permission_existed_dao = PermissionKeycloakDao.from_entity(permission_existed)
-            try:
-                await self.uma_client.a_policy_update(
-                    permission_existed_dao.id, permission_dao.model_dump(exclude_none=True)
-                )
-            except KeycloakPutError as err:
-                self.__handle_error(
-                    error=err,
-                    description=f"Failed to update the permission {permission_dao.name} ({permission_dao.id}) on Keycloak",
-                )
+            permission_dao.id = permission_existed_dao.id
+            await self.__update(permission_dao)
             return permission
 
-        resource_id_first = permission_dao.resources[0]
-        try:
-            saved_permission = await self.uma_client.a_policy_resource_create(
-                resource_id_first, permission_dao.model_dump(exclude_none=True)
-            )
-        except KeycloakPostError as err:
-            self.__handle_error(error=err, description="Failed to create a new permission on Keycloak")
-
-        saved_permission_dao = PermissionKeycloakDao.model_validate(saved_permission)
-        # resources claim is not included in keycloak response
-        saved_permission_dao.resources = permission_dao.resources
-
-        return saved_permission_dao.to_entity()
+        saved_permission = await self.__create(permission_dao)
+        return saved_permission
 
     async def delete_permission(self, permission_id: str) -> None:
         try:
-            await self.uma_client.a_resource_set_delete(permission_id)
-        except KeycloakDeleteError:
-            return
+            await self.uma_client.a_policy_delete(permission_id)
+        except KeycloakDeleteError as err:
+            self.__handle_error(description="Failed to delete the permission from Keycloak", error=err)

@@ -3,13 +3,14 @@ from core.settings import Settings
 from ddd.domains.asset import AssetRepositoryIF
 from ddd.domains.authorization import AuthConfig, AuthRepositoryIF
 from ddd.domains.connector import ConnectorRepositoryIF
-from ddd.domains.dataspace import DataspaceAssetQueryServiceIF
+from ddd.domains.dataspace import DataspaceAssetCatalogQueryServiceIF
 from ddd.domains.knowledge import KnowledgeQueryServiceIF
-from ddd.infrastructure.dataspace.asset_query_service import DataspaceAssetQueryServiceImpl
+from ddd.infrastructure.dataspace.asset_catalog_query_service import DataspaceAssetCatalogQueryServiceImpl
 from ddd.infrastructure.json.connector_repository import JSONConnectorRepository
 from ddd.infrastructure.keycloak.asset_repository import JSONandKeycloakAssetRepository
 from ddd.infrastructure.keycloak.authorization_repository import KeycloakAuthRepository
 from ddd.infrastructure.pinecone.knowledge_query_service import PineconeKnowledgeQueryService
+from ddd.infrastructure.qdrant.knowledge_query_service import QdrantKnowledgeQueryService
 from fastapi import Depends
 
 
@@ -51,17 +52,22 @@ def get_knowledge_query_service(settings: Settings = Depends(get_settings)) -> K
             text_key_in_metadata=settings.vector_db_metadata_text_key,
         )
     elif service == "qdrant":
-        raise ValueError("Not supporting Qdrant")
+        return QdrantKnowledgeQueryService(
+            url=settings.vector_db_url,
+            api_key=settings.vector_db_api_key,
+            index_name=settings.vector_db_index_name,
+            text_key_in_metadata=settings.vector_db_metadata_text_key,
+        )
     else:
         raise ValueError(f"Unsupported vector db service: {service}")
 
 
-async def get_dataspace_asset_query_service(
+async def get_dataspace_asset_catalog_query_service(
     auth_repository: AuthRepositoryIF = Depends(get_auth_repository),
     connector_repository: ConnectorRepositoryIF = Depends(get_connector_repository),
-) -> DataspaceAssetQueryServiceIF:
+) -> DataspaceAssetCatalogQueryServiceIF:
     access_token = await auth_repository.authenticate()
 
-    return DataspaceAssetQueryServiceImpl(
+    return DataspaceAssetCatalogQueryServiceImpl(
         dataspace_access_token=access_token, connector_repository=connector_repository
     )

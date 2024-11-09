@@ -1,8 +1,8 @@
+from api.dependencies.infrastructure import get_auth_repository
 from api.dependencies.settings import get_settings
-from api.dependencies.usecase import get_authorization_usecase
 from core.exceptions import ConnectorException
 from core.settings import Settings
-from ddd.usecases.authorization import AuthorizationUsecase
+from ddd.domains.authorization import AuthRepositoryIF
 from fastapi import Depends, status
 from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
 
@@ -36,9 +36,8 @@ async def get_bearer_token(credentials: HTTPAuthorizationCredentials = Depends(b
 
 
 async def verify_bearer_token(
-    bearer_token: str = Depends(get_bearer_token),
-    authorization_usecase: AuthorizationUsecase = Depends(get_authorization_usecase),
+    bearer_token: str = Depends(get_bearer_token), auth_repository: AuthRepositoryIF = Depends(get_auth_repository)
 ) -> None:
-    is_active = await authorization_usecase.verify_token(bearer_token)
+    is_active = await auth_repository.verify_authenticity(bearer_token)
     if not is_active:
         raise ConnectorException(status_code=status.HTTP_401_UNAUTHORIZED, description="Invalid access token")
