@@ -23,7 +23,7 @@ class DataspaceAssetCatalogQueryServiceIF(abc.ABC):
 
 class DataspaceKnowledgeQueryServiceIF(abc.ABC):
     @abc.abstractmethod
-    async def query(self, provider_id: ConnectorId, query: KnowledgeQuery) -> list[Knowledge]:
+    async def execute(self, provider_id: ConnectorId, query: KnowledgeQuery) -> list[Knowledge]:
         raise NotImplementedError
 
     # @abc.abstractmethod

@@ -1,3 +1,4 @@
+from core.exceptions import InternalException
 from ddd.domains.knowledge import Knowledge, KnowledgeQuery, KnowledgeQueryServiceIF
 from pinecone.exceptions import PineconeException
 from pinecone.grpc import PineconeGRPC as Pinecone
@@ -18,7 +19,10 @@ class PineconeKnowledgeQueryService(KnowledgeQueryServiceIF):
         self.__client: Pinecone = Pinecone(api_key=self.__api_key)
         self.index = self.__client.Index(self.__index_name)
 
-    async def query(self, query: KnowledgeQuery) -> list[Knowledge]:
+    def __handle_error(self, description: str, error: Exception | None = None):
+        raise InternalException(description=description, upstream_exc=error)
+
+    async def execute(self, query: KnowledgeQuery) -> list[Knowledge]:
         query_dao = KnowledgeQueryPineconeDao.from_entity(query)
         try:
             query_response = self.index.query(

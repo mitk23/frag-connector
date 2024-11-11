@@ -1,16 +1,22 @@
 from core.exceptions import ConnectorException, InternalException
 from ddd.domains.asset import AssetId
 from ddd.domains.connector import ConnectorId
-from ddd.domains.dataspace import DataspaceAssetCatalogQueryServiceIF
+from ddd.domains.dataspace import DataspaceAssetCatalogQueryServiceIF, DataspaceKnowledgeQueryServiceIF
+from ddd.domains.knowledge import FederatedKnowledgeQueryResult, Knowledge
 from fastapi import status
 
 from .schemas.asset import AssetCatalogDto, DistributionContentDto
-from .schemas.knowledge import KnowledgeQueryDto
+from .schemas.knowledge import FederatedKnowledgeQueryDto, KnowledgeDto
 
 
 class DataspaceUsecase:
-    def __init__(self, asset_catalog_query_service: DataspaceAssetCatalogQueryServiceIF):
+    def __init__(
+        self,
+        asset_catalog_query_service: DataspaceAssetCatalogQueryServiceIF,
+        knowledge_query_service: DataspaceKnowledgeQueryServiceIF,
+    ):
         self.__asset_catalog_query_service = asset_catalog_query_service
+        self.__knowledge_query_service = knowledge_query_service
 
     def __handle_error(
         self, description: str, status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR, error: Exception | None = None
@@ -38,10 +44,30 @@ class DataspaceUsecase:
             )
         return DistributionContentDto.from_entity(distribution_content)
 
-    async def retrieve_documents(
-        self, provider_id_list: list[str], knowledge_query: KnowledgeQueryDto, rerank_method: str
-    ):
-        raise NotImplementedError
+    async def retrieve_knowledges(self, federated_knowledge_query: FederatedKnowledgeQueryDto) -> list[KnowledgeDto]:
+        query = federated_knowledge_query.query
+        providers = federated_knowledge_query.providers
+        if len(providers) == 0:
+            providers = ...
+
+        query_result: dict[ConnectorId, list[Knowledge]] = {}
+        for provider in providers:
+            provider_id = ConnectorId(value=provider)
+            knowledges = await self.__knowledge_query_service.execute(provider_id, query.to_entity())
+            query_result[provider_id] = knowledges
+
+        query_result_entity = FederatedKnowledgeQueryResult(result=query_result)
+
+        # TODO: 2種類のTop Kを区別する
+        # TODO: rerankしない対応
+        # TODO: contribution対応
+        # TODO: rerankはAPI呼び出し側の責務
+        reranked_knowledges = query_result_entity.rerank(
+            method=federated_knowledge_query.knowledge_rerank_method,
+            top_k=query.config.top_k,
+            query_embedding=query.embedding,
+        )
+        return [KnowledgeDto.from_entity(knowledge) for knowledge in reranked_knowledges]
 
     async def generate_text(self) -> str:
         raise NotImplementedError

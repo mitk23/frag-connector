@@ -1,11 +1,14 @@
 from io import BytesIO
 
-from api.dependencies.usecase import get_asset_catalog_usecase
+from api.dependencies.usecase import get_asset_catalog_usecase, get_knowledge_query_secure_usecase
 from ddd.usecases.asset import AssetCatalogUsecase
+from ddd.usecases.knowledge import KnowledgeQuerySecureUsecase
+from ddd.usecases.schemas.knowledge import KnowledgeQueryDto
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import UUID4
 from schemas.assets import AssetCatalogResponse
+from schemas.knowledges import KnowledgeQueryRequest, KnowledgeResponse
 
 router = APIRouter()
 
@@ -40,27 +43,15 @@ async def download_distribution(
     return StreamingResponse(content=BytesIO(distribution.content), media_type=distribution.media_type)
 
 
-# @router.post("/retrieve", response_model=protocol.RetrieveResponse)
-# async def retrieve(
-#     req: protocol.RetrieveRequest,
-#     access_token: str = Depends(get_bearer_token),
-#     vector_db=Depends(get_knowledge_query_service),
-#     authorization_usecase: AuthorizationUsecase = Depends(get_authorization_usecase),
-# ):
-#     # TODO: top_kのうちから返せるものだけを返すのか、認可をした上でtop_kを返すのか
-#     retrieved_vectors: list[dict] = vector_db.query(
-#         vector=req.query_vector,
-#         top_k=req.top_k,
-#         include_vector=req.include_vector,
-#     )
+@router.post("/knowledges", response_model=list[KnowledgeResponse])
+async def retrieve_knowledge(
+    query: KnowledgeQueryRequest,
+    knowledge_query_usecase: KnowledgeQuerySecureUsecase = Depends(get_knowledge_query_secure_usecase),
+):
+    query_dto = KnowledgeQueryDto.model_validate(query, from_attributes=True)
 
-#     # TODO: IDだけではなくメタデータ（文書ID, 文書集合ID）による認可判断にも対応する
-#     retrieved_vector_ids = [v.get("id") for v in retrieved_vectors]
-#     authorized_vector_id_set = await authorization_usecase.get_authorized_resource_set(
-#         access_token, retrieved_vector_ids
-#     )
-#     authorized_vectors = [v for v in retrieved_vectors if v.get("id") in authorized_vector_id_set]
-#     return authorized_vectors
+    knowledge_dto_list = await knowledge_query_usecase.execute(query_dto)
+    return [KnowledgeResponse.model_validate(knowledge, from_attributes=True) for knowledge in knowledge_dto_list]
 
 
 # @router.post("/generate", response_model=protocol.GenerateResponse)

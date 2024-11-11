@@ -1,10 +1,12 @@
 import httpx
 from api.dependencies.usecase import get_dataspace_usecase
 from ddd.usecases.dataspace import DataspaceUsecase
+from ddd.usecases.schemas.knowledge import FederatedKnowledgeQueryDto
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from pydantic import UUID4
 from schemas.assets import AssetCatalogResponse
+from schemas.knowledges import FederatedKnowledgeQueryRequest, KnowledgeResponse
 
 router = APIRouter()
 
@@ -32,28 +34,28 @@ async def download_distribution(
     return StreamingResponse(content=distribution_content.stream, media_type=distribution_content.media_type)
 
 
-# @router.post("/retrieve")
-# async def retrieve(
-#     req: management.RetrieveRequest,
-#     access_token: str = Depends(get_oauth_access_token),
-#     connector_usecase: ConnectorUsecase = Depends(get_connector_usecase),
-# ):
-#     headers = {
-#         "Authorization": f"Bearer {access_token}",
-#         "Content-Type": "application/json",
-#     }
+@router.post("/knowledges", response_model=list[KnowledgeResponse])
+async def retrieve_knowledges(
+    federated_knowledge_query: FederatedKnowledgeQueryRequest,
+    dataspace_usecase: DataspaceUsecase = Depends(get_dataspace_usecase),
+):
+    federated_knowledge_query_dto = FederatedKnowledgeQueryDto.model_validate(
+        federated_knowledge_query, from_attributes=True
+    )
+    knowledge_dto_list = await dataspace_usecase.retrieve_knowledges(federated_knowledge_query_dto)
+    return [KnowledgeResponse.model_validate(knowledge, from_attributes=True) for knowledge in knowledge_dto_list]
 
-#     # TODO: メタデータによるフィルタリング条件の指定パラメータを加える
-#     federated_retriever = FederatedRetriever(
-#         retrievers=req.retrieval_providers,
-#         connector_usecase=connector_usecase,
-#         rerank=req.rerank,
-#         include_contribution=req.include_contribution,
-#     )
-#     retrieved_vector_list = await federated_retriever.retrieve(
-#         vector=req.query_vector, top_k=req.top_k, include_vector=req.include_vector, headers=headers
-#     )
-#     return retrieved_vector_list
+    # # TODO: メタデータによるフィルタリング条件の指定パラメータを加える
+    # federated_retriever = FederatedRetriever(
+    #     retrievers=req.retrieval_providers,
+    #     connector_usecase=connector_usecase,
+    #     rerank=req.rerank,
+    #     include_contribution=req.include_contribution,
+    # )
+    # retrieved_vector_list = await federated_retriever.retrieve(
+    #     vector=req.query_vector, top_k=req.top_k, include_vector=req.include_vector, headers=headers
+    # )
+    # return retrieved_vector_list
 
 
 # @router.post("/generate")

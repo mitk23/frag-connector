@@ -3,9 +3,10 @@ from core.settings import Settings
 from ddd.domains.asset import AssetRepositoryIF
 from ddd.domains.authorization import AuthConfig, AuthRepositoryIF
 from ddd.domains.connector import ConnectorRepositoryIF
-from ddd.domains.dataspace import DataspaceAssetCatalogQueryServiceIF
+from ddd.domains.dataspace import DataspaceAssetCatalogQueryServiceIF, DataspaceKnowledgeQueryServiceIF
 from ddd.domains.knowledge import KnowledgeQueryServiceIF
 from ddd.infrastructure.dataspace.asset_catalog_query_service import DataspaceAssetCatalogQueryServiceImpl
+from ddd.infrastructure.dataspace.knowledge_query_service import DataspaceKnowledgeQueryServiceImpl
 from ddd.infrastructure.json.connector_repository import JSONConnectorRepository
 from ddd.infrastructure.keycloak.asset_repository import JSONandKeycloakAssetRepository
 from ddd.infrastructure.keycloak.authorization_repository import KeycloakAuthRepository
@@ -69,5 +70,16 @@ async def get_dataspace_asset_catalog_query_service(
     access_token = await auth_repository.authenticate()
 
     return DataspaceAssetCatalogQueryServiceImpl(
+        dataspace_access_token=access_token, connector_repository=connector_repository
+    )
+
+
+async def get_dataspace_knowledge_query_service(
+    auth_repository: AuthRepositoryIF = Depends(get_auth_repository),
+    connector_repository: ConnectorRepositoryIF = Depends(get_connector_repository),
+) -> DataspaceKnowledgeQueryServiceIF:
+    access_token = await auth_repository.authenticate()
+
+    return DataspaceKnowledgeQueryServiceImpl(
         dataspace_access_token=access_token, connector_repository=connector_repository
     )

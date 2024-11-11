@@ -24,9 +24,10 @@ class Settings(BaseSettings):
 
     # Vector DB
     vector_db_service: Literal["pinecone", "qdrant"] | None = None
+    vector_db_url: str | None = None
     vector_db_api_key: str | None = None
-    vector_db_index_name: str = "sample-movies"
-    vector_db_metadata_text_key: str | None = None
+    vector_db_index_name: str = "test-index"
+    vector_db_metadata_text_key: str | None = "text"
 
     # LLM
     llm_service: Literal["openai", "ollama"] | None = None

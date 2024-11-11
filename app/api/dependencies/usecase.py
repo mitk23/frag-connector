@@ -4,14 +4,18 @@ from api.dependencies.infrastructure import (
     get_auth_repository,
     get_connector_repository,
     get_dataspace_asset_catalog_query_service,
+    get_dataspace_knowledge_query_service,
+    get_knowledge_query_service,
 )
 from ddd.domains.asset import AssetRepositoryIF
 from ddd.domains.authorization import AuthRepositoryIF
 from ddd.domains.connector import ConnectorRepositoryIF
-from ddd.domains.dataspace import DataspaceAssetCatalogQueryServiceIF
+from ddd.domains.dataspace import DataspaceAssetCatalogQueryServiceIF, DataspaceKnowledgeQueryServiceIF
+from ddd.domains.knowledge import KnowledgeQueryServiceIF
 from ddd.usecases.asset import AssetCatalogUsecase, AssetCommandUsecase, AssetQueryUsecase
 from ddd.usecases.connector import ConnectorCommandUsecase, ConnectorQueryUsecase
 from ddd.usecases.dataspace import DataspaceUsecase
+from ddd.usecases.knowledge import KnowledgeQuerySecureUsecase, KnowledgeQueryUsecase
 from fastapi import Depends
 
 
@@ -49,19 +53,30 @@ def get_connector_command_usecase(
     return ConnectorCommandUsecase(connector_repository, auth_repository)
 
 
-# def get_authorization_usecase(
-#     auth_repository: AuthRepositoryIF = Depends(get_auth_repository),
-#     connector_usecase: ConnectorUsecase = Depends(get_connector_usecase),
-# ) -> AuthorizationUsecase:
-#     return AuthorizationUsecase(auth_repository, connector_usecase)
+def get_knowledge_query_usecase(
+    knowledge_query_service: KnowledgeQueryServiceIF = Depends(get_knowledge_query_service),
+) -> KnowledgeQueryUsecase:
+    return KnowledgeQueryUsecase(knowledge_query_service)
+
+
+def get_knowledge_query_secure_usecase(
+    knowledge_query_service: KnowledgeQueryServiceIF = Depends(get_knowledge_query_service),
+    asset_repository: AssetRepositoryIF = Depends(get_asset_repository),
+    auth_repository: AuthRepositoryIF = Depends(get_auth_repository),
+    access_token: str = Depends(get_bearer_token),
+) -> KnowledgeQuerySecureUsecase:
+    return KnowledgeQuerySecureUsecase(
+        knowledge_query_service, asset_repository, auth_repository, knowledge_access_token=access_token
+    )
 
 
 def get_dataspace_usecase(
     asset_catalog_query_service: DataspaceAssetCatalogQueryServiceIF = Depends(
         get_dataspace_asset_catalog_query_service
     ),
+    knowledge_query_service: DataspaceKnowledgeQueryServiceIF = Depends(get_dataspace_knowledge_query_service),
 ):
-    return DataspaceUsecase(asset_catalog_query_service)
+    return DataspaceUsecase(asset_catalog_query_service, knowledge_query_service)
 
 
 # def get_llm_interface(settings: Settings = Depends(get_settings)):
