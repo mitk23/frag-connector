@@ -1,0 +1,19 @@
+{
+  "7955ab20-1e0a-4a83-bf79-0bd933792825": {
+    "title": "example-asset",
+    "description": "example asset",
+    "usage_policy": {
+      "security_level": "public"
+    },
+    "id": "7955ab20-1e0a-4a83-bf79-0bd933792825",
+    "distributions": [
+      {
+        "title": "example-asset-1",
+        "description": null,
+        "media_type": "text/plain",
+        "url": "http://localhost:8080"
+      }
+    ],
+    "vectors": null
+  }
+}

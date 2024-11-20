@@ -1,0 +1,7 @@
+{
+  "example-connector": {
+    "id": "example-connector",
+    "url": "http://localhost:8000/",
+    "trust": "low"
+  }
+}
