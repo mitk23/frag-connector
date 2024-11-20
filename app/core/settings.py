@@ -12,8 +12,6 @@ class Settings(BaseSettings):
     connector_name: str = Field(alias="MY_CONNECTOR_NAME", default="my-frag-connector")
     connector_fqdn: str = Field(alias="MY_CONNECTOR_FQDN", default="http://localhost")
     connector_port: int = Field(alias="MY_CONNECTOR_PORT", default=8000)
-    connector_origin: str = f"{connector_fqdn}:{connector_port}"
-    participant_id: str = Field(alias="MY_PARTICIPANT_ID", default="test")
     connector_api_key: str = Field(alias="MY_CONNECTOR_API_KEY", default="DefaultApiKey")
 
     # Authentication / Authorization
