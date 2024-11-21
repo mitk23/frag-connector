@@ -189,6 +189,8 @@ class AssetCatalogUsecase:
 
     async def download_distribution(self, asset_id: str, distribution_title: str) -> DistributionContentDto:
         asset = await self.__asset_repository.find_by_id(AssetId(value=asset_id))
+        if asset is None:
+            self.__handle_error(status_code=status.HTTP_404_NOT_FOUND, description=f"Asset [{asset_id}] not found")
 
         is_authorized = await self.__auth_repository.authorize(self.__catalog_access_token, asset)
         if not is_authorized:
