@@ -18,6 +18,9 @@ class Knowledge(BaseModel):
     def __eq__(self, obj: object) -> bool:
         return self.id == obj.id
 
+    def __lt__(self, obj: object) -> bool:
+        return self.id < obj.id
+
 
 class KnowledgeQueryConfig(BaseModel):
     top_k: int | None = 3
