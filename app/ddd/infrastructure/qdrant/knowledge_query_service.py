@@ -27,12 +27,13 @@ class QdrantKnowledgeQueryService(KnowledgeQueryServiceIF):
             response = await self.__client.search(
                 collection_name=self.__index_name,
                 query_vector=query_dao.query_vector,
+                query_filter=query_dao.query_filter,
                 limit=query_dao.limit,
                 with_vectors=query_dao.with_vectors,
                 with_payload=query_dao.with_payload,
             )
         except UnexpectedResponse as exc:
-            self.__handle_error(exc, description="Failed to query vectors from Qdrant")
+            self.__handle_error(description="Failed to query vectors from Qdrant", error=exc)
 
         knowledge_dao_list = [KnowledgeQdrantDao.model_validate(point, from_attributes=True) for point in response]
         return [
