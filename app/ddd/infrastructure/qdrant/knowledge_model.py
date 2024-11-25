@@ -2,6 +2,7 @@ from typing import Any
 
 from ddd.domains.knowledge import Knowledge, KnowledgeQuery
 from pydantic import BaseModel
+from qdrant_client.models import Filter
 
 
 class KnowledgeQdrantDao(BaseModel):
@@ -18,11 +19,11 @@ class KnowledgeQdrantDao(BaseModel):
 
 
 class KnowledgeQueryQdrantDao(BaseModel):
-    # TODO: implement filter
     query_vector: list[float]
     limit: int | None = 3
     with_vectors: bool | None = True
     with_payload: bool | None = True
+    query_filter: Filter | None = None
 
     @staticmethod
     def from_entity(query: KnowledgeQuery) -> "KnowledgeQueryQdrantDao":
@@ -31,4 +32,5 @@ class KnowledgeQueryQdrantDao(BaseModel):
             limit=query.config.top_k,
             with_vectors=query.config.include_embedding,
             with_payload=query.config.include_metadata,
+            query_filter=Filter.model_validate(query.config.filter) if query.config.filter else None,
         )
