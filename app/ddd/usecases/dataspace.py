@@ -60,8 +60,6 @@ class DataspaceUsecase:
                 [FederatedKnowledge.from_knowledge(knowledge, provider_id) for knowledge in knowledges]
             )
 
-        # TODO: rerankしない対応
-        # TODO: rerankはAPI呼び出し側の責務
         if federated_knowledge_query.knowledge_rerank_method is not None:
             federated_knowledge_list = federated_knowledge_list.rerank(
                 method=federated_knowledge_query.knowledge_rerank_method,

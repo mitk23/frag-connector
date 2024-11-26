@@ -30,5 +30,5 @@ class FederatedKnowledgeResponse(KnowledgeResponse):
 class FederatedKnowledgeQueryRequest(BaseModel):
     query: KnowledgeQueryRequest
     providers: list[str] | None = None
-    knowledge_rerank_method: Literal["naive", "cosine"] | None = "naive"
+    knowledge_rerank_method: Literal["naive", "cosine"] | None = None
     return_num_knowledges: int | None = 5
