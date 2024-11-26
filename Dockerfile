@@ -13,7 +13,7 @@ RUN pip install --upgrade pip && \
   uv pip install -r requirements.txt 
 
 
-FROM python:${PYTHON_VERSION}-slim
+FROM python:${PYTHON_VERSION}-slim AS dev
 
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -21,3 +21,15 @@ ENV PYTHONDONTWRITEBYTECODE=1
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 
 WORKDIR /
+
+
+FROM python:${PYTHON_VERSION}-slim AS final
+
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
+COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+
+WORKDIR /app
+COPY ./app /app
+CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
