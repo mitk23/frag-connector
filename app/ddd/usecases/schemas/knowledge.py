@@ -2,6 +2,8 @@ from typing import Any
 
 from ddd.domains.connector import ConnectorId
 from ddd.domains.knowledge import (
+    FederatedKnowledge,
+    FederatedKnowledgeList,
     FederatedKnowledgeQuery,
     Knowledge,
     KnowledgeQuery,
@@ -60,10 +62,55 @@ class KnowledgeQueryDto(BaseModel):
         )
 
 
+class FederatedKnowledgeDto(KnowledgeDto):
+    provider: str
+
+    def to_entity(self) -> FederatedKnowledge:
+        return FederatedKnowledge(
+            id=self.id,
+            text=self.text,
+            embedding=self.embedding,
+            score=self.score,
+            metadata=self.metadata,
+            provider=ConnectorId(value=self.provider),
+        )
+
+    @staticmethod
+    def from_entity(knowledge: FederatedKnowledge) -> "FederatedKnowledgeDto":
+        return FederatedKnowledgeDto(
+            id=knowledge.id,
+            text=knowledge.text,
+            embedding=knowledge.embedding,
+            score=knowledge.score,
+            metadata=knowledge.metadata,
+            provider=str(knowledge.provider),
+        )
+
+
+class FederatedKnowledgeListDto(BaseModel):
+    knowledge_list: list[FederatedKnowledgeDto]
+    __index: int = 0
+
+    def __iter__(self):
+        return self
+
+    def __next__(self) -> FederatedKnowledgeDto:
+        if self.__index == len(self.knowledge_list):
+            raise StopIteration()
+        value = self.knowledge_list[self.__index]
+        self.__index += 1
+        return value
+
+    @staticmethod
+    def from_entity(knowledge_list: FederatedKnowledgeList) -> "FederatedKnowledgeListDto":
+        return FederatedKnowledgeListDto(
+            knowledge_list=[FederatedKnowledgeDto.from_entity(knowledge) for knowledge in knowledge_list]
+        )
+
+
 class FederatedKnowledgeQueryDto(BaseModel):
     query: KnowledgeQueryDto
     providers: list[str] | None = []
-    include_provider_contribution: bool | None = False
     knowledge_rerank_method: str | None = None
     return_num_knowledges: int | None
 
@@ -71,7 +118,6 @@ class FederatedKnowledgeQueryDto(BaseModel):
         return FederatedKnowledgeQuery(
             query=self.query.to_entity(),
             providers=[ConnectorId(value=provider_id) for provider_id in self.providers],
-            include_provider_contribution=self.include_provider_contribution,
             knowledge_rerank_method=KnowledgeRerankMethod(value=self.knowledge_rerank_method)
             if self.knowledge_rerank_method
             else None,

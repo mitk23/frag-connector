@@ -2,6 +2,7 @@ import abc
 import heapq
 from typing import Any, ClassVar, Generator, Literal
 
+import numpy as np
 from ddd.domains.connector import ConnectorId
 from pydantic import BaseModel
 
@@ -42,77 +43,37 @@ class KnowledgeRerankMethod(ValueObject):
     value: Literal["naive", "cosine"] | None = "naive"
 
 
-class FederatedKnowledgeQuery(BaseModel):
-    query: KnowledgeQuery
-    providers: list[ConnectorId] | None = []
-    include_provider_contribution: bool | None = False
-    knowledge_rerank_method: KnowledgeRerankMethod | None = KnowledgeRerankMethod()
-    return_num_knowledges: int | None
+class FederatedKnowledge(Knowledge):
+    provider: ConnectorId
+
+    @staticmethod
+    def from_knowledge(knowledge: Knowledge, provider: ConnectorId) -> "FederatedKnowledge":
+        return FederatedKnowledge(provider=provider, **knowledge.model_dump())
 
 
-class FederatedKnowledgeQueryResult(BaseModel):
-    result: dict[ConnectorId, list[Knowledge]]
+class FederatedKnowledgeList(BaseModel):
+    knowledge_list: list[FederatedKnowledge] | None = []
+    __index: int = 0
 
-    def __rerank_naive(self, top_k: int):
-        """
-        extract Top-K knowledges by its similarity score
-        """
-        num_knowledges_in_result = len([knowledge for knowledges in self.result.values() for knowledge in knowledges])
-        return_top_k = min(top_k, num_knowledges_in_result)
+    def __iter__(self):
+        return self
 
-        # heap[Score, ConnectorId, Index]
-        heap: list[tuple[float, ConnectorId, int]] = []
+    def __next__(self) -> FederatedKnowledge:
+        if self.__index == len(self.knowledge_list):
+            raise StopIteration()
+        value = self.knowledge_list[self.__index]
+        self.__index += 1
+        return value
 
-        for provider, knowledges in self.result.items():
-            if len(knowledges) == 0:
-                continue
-            top_knowledge_score = knowledges[0].score
-            heapq.heappush(heap, (-top_knowledge_score, provider, 0))
+    def append(self, knowledge: FederatedKnowledge) -> None:
+        self.knowledge_list.append(knowledge)
 
-        reranked_knowledges: list[Knowledge] = []
-        for _ in range(return_top_k):
-            if len(heap) == 0:
-                break
-
-            _, provider, idx = heapq.heappop(heap)
-
-            knowledge = self.result.get(provider)[idx]
-            # TODO: Contribution対応
-            # if knowledge.metadata is None:
-            #     knowledge.metadata = {"provider": str(provider)}
-            # else:
-            #     knowledge.metadata |= {"provider": str(provider)}
-            reranked_knowledges.append(knowledge)
-
-            if idx + 1 < len(self.result.get(provider)):
-                next_knowledge_score = self.result.get(provider)[idx + 1].score
-                heapq.heappush(heap, (-next_knowledge_score, provider, idx + 1))
-        return reranked_knowledges
-
-    def __rerank_cosine(self, top_k: int, query_embedding: list[float]):
-        def cosine_similarity(x: list[float], y: list[float]) -> float:
-            import numpy as np
-
-            return np.dot(x, y) / (np.linalg.norm(x) * np.linalg.norm(y))
-
-        num_knowledges_in_result = len([knowledge for knowledges in self.result.values() for knowledge in knowledges])
-        return_top_k = min(top_k, num_knowledges_in_result)
-
-        # heap[Score, ConnectorId, Knowledge]
-        heap: list[tuple[float, ConnectorId, Knowledge]] = []
-
-        for provider, knowledges in self.result.items():
-            for knowledge in knowledges:
-                new_score = cosine_similarity(knowledge.embedding, query_embedding)
-                knowledge.score = new_score
-                heapq.heappush(heap, (new_score, provider, knowledge))
-
-        top_k_knowledges = heapq.nlargest(return_top_k, heap, key=lambda ele: ele[0])
-        return [knowledge for _, _, knowledge in top_k_knowledges]
+    def append_list(self, knowledges: list[FederatedKnowledge]) -> None:
+        self.knowledge_list += knowledges
 
     def rerank(
         self, method: KnowledgeRerankMethod, top_k: int = 5, query_embedding: list[float] | None = None
-    ) -> list[Knowledge]:
+    ) -> "FederatedKnowledgeList":
         if str(method) == KnowledgeRerankMethod.NAIVE:
             return self.__rerank_naive(top_k)
         elif str(method) == KnowledgeRerankMethod.COSINE:
@@ -121,6 +82,41 @@ class FederatedKnowledgeQueryResult(BaseModel):
             return self.__rerank_cosine(top_k, query_embedding)
         else:
             raise ValueError("Unsupported rerank method")
+
+    def __rerank_naive(self, top_k: int) -> "FederatedKnowledgeList":
+        """
+        extract Top-K knowledges by its similarity score
+        """
+        # heap[tuple[float, FederatedKnowledge]]
+        heap: list[tuple[float, FederatedKnowledge]] = []
+
+        for knowledge in self.knowledge_list:
+            heapq.heappush(heap, (knowledge.score, knowledge))
+
+        top_k_knowledges = heapq.nlargest(min(top_k, len(self.knowledge_list)), heap, key=lambda tup: tup[0])
+        return FederatedKnowledgeList(knowledge_list=[knowledge for _, knowledge in top_k_knowledges])
+
+    def __rerank_cosine(self, top_k: int, query_embedding: list[float]) -> "FederatedKnowledgeList":
+        def cosine_similarity(x: list[float], y: list[float]) -> float:
+            return np.dot(x, y) / (np.linalg.norm(x) * np.linalg.norm(y))
+
+        # heap[tuple[float, FederatedKnowledge]]
+        heap: list[tuple[float, FederatedKnowledge]] = []
+
+        for knowledge in self.knowledge_list:
+            new_score = cosine_similarity(knowledge.embedding, query_embedding)
+            knowledge.score = new_score
+            heapq.heappush(heap, (new_score, knowledge))
+
+        top_k_knowledges = heapq.nlargest(min(top_k, len(self.knowledge_list)), heap, key=lambda tup: tup[0])
+        return FederatedKnowledgeList(knowledge_list=[knowledge for _, knowledge in top_k_knowledges])
+
+
+class FederatedKnowledgeQuery(BaseModel):
+    query: KnowledgeQuery
+    providers: list[ConnectorId] | None = []
+    knowledge_rerank_method: KnowledgeRerankMethod | None = KnowledgeRerankMethod()
+    return_num_knowledges: int | None
 
 
 class KnowledgeQueryServiceIF(abc.ABC):
