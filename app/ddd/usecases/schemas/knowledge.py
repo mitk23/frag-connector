@@ -65,6 +65,7 @@ class FederatedKnowledgeQueryDto(BaseModel):
     providers: list[str] | None = []
     include_provider_contribution: bool | None = False
     knowledge_rerank_method: str | None = None
+    return_num_knowledges: int | None
 
     def to_entity(self) -> FederatedKnowledgeQuery:
         return FederatedKnowledgeQuery(
@@ -74,4 +75,5 @@ class FederatedKnowledgeQueryDto(BaseModel):
             knowledge_rerank_method=KnowledgeRerankMethod(value=self.knowledge_rerank_method)
             if self.knowledge_rerank_method
             else None,
+            return_num_knowledges=self.return_num_knowledges,
         )

@@ -28,3 +28,4 @@ class FederatedKnowledgeQueryRequest(BaseModel):
     providers: list[str] | None = None
     include_provider_contribution: bool = False
     knowledge_rerank_method: Literal["naive", "cosine"] | None = "naive"
+    return_num_knowledges: int | None = 5
