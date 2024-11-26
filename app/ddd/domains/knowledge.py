@@ -115,7 +115,7 @@ class FederatedKnowledgeList(BaseModel):
 class FederatedKnowledgeQuery(BaseModel):
     query: KnowledgeQuery
     providers: list[ConnectorId] | None = []
-    knowledge_rerank_method: KnowledgeRerankMethod | None = KnowledgeRerankMethod()
+    knowledge_rerank_method: KnowledgeRerankMethod | None = None
     return_num_knowledges: int | None
 
 
