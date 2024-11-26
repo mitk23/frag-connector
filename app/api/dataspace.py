@@ -112,7 +112,6 @@ async def retrieve_knowledges(
 
 #     generation_endpoint = llm_connector_origin + __GENERATE_API_PATH
 
-#     # TODO: FRAGの結果にretrieverや貢献度などの情報を加える
 #     answer = await __generate(
 #         generation_endpoint=generation_endpoint, model=req.model, user_prompt=user_prompt, headers=headers
 #     )
