@@ -1,7 +1,9 @@
 services:
   api:
     image: frag-connector-fastapi
-    build: .
+    build:
+      context: .
+      target: dev
     container_name: frag-connector-api
     working_dir: /app/
     env_file:
