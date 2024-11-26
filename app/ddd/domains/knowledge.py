@@ -47,6 +47,7 @@ class FederatedKnowledgeQuery(BaseModel):
     providers: list[ConnectorId] | None = []
     include_provider_contribution: bool | None = False
     knowledge_rerank_method: KnowledgeRerankMethod | None = KnowledgeRerankMethod()
+    return_num_knowledges: int | None
 
 
 class FederatedKnowledgeQueryResult(BaseModel):
@@ -56,6 +57,9 @@ class FederatedKnowledgeQueryResult(BaseModel):
         """
         extract Top-K knowledges by its similarity score
         """
+        num_knowledges_in_result = len([knowledge for knowledges in self.result.values() for knowledge in knowledges])
+        return_top_k = min(top_k, num_knowledges_in_result)
+
         # heap[Score, ConnectorId, Index]
         heap: list[tuple[float, ConnectorId, int]] = []
 
@@ -66,7 +70,7 @@ class FederatedKnowledgeQueryResult(BaseModel):
             heapq.heappush(heap, (-top_knowledge_score, provider, 0))
 
         reranked_knowledges: list[Knowledge] = []
-        for _ in range(top_k):
+        for _ in range(return_top_k):
             if len(heap) == 0:
                 break
 
@@ -91,6 +95,9 @@ class FederatedKnowledgeQueryResult(BaseModel):
 
             return np.dot(x, y) / (np.linalg.norm(x) * np.linalg.norm(y))
 
+        num_knowledges_in_result = len([knowledge for knowledges in self.result.values() for knowledge in knowledges])
+        return_top_k = min(top_k, num_knowledges_in_result)
+
         # heap[Score, ConnectorId, Knowledge]
         heap: list[tuple[float, ConnectorId, Knowledge]] = []
 
@@ -100,11 +107,11 @@ class FederatedKnowledgeQueryResult(BaseModel):
                 knowledge.score = new_score
                 heapq.heappush(heap, (new_score, provider, knowledge))
 
-        top_k_knowledges = heapq.nlargest(top_k, heap, key=lambda ele: ele[0])
+        top_k_knowledges = heapq.nlargest(return_top_k, heap, key=lambda ele: ele[0])
         return [knowledge for _, _, knowledge in top_k_knowledges]
 
     def rerank(
-        self, method: KnowledgeRerankMethod, top_k: int = 3, query_embedding: list[float] | None = None
+        self, method: KnowledgeRerankMethod, top_k: int = 5, query_embedding: list[float] | None = None
     ) -> list[Knowledge]:
         if str(method) == KnowledgeRerankMethod.NAIVE:
             return self.__rerank_naive(top_k)

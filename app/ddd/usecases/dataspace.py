@@ -58,13 +58,12 @@ class DataspaceUsecase:
 
         query_result_entity = FederatedKnowledgeQueryResult(result=query_result)
 
-        # TODO: 2種類のTop Kを区別する
         # TODO: rerankしない対応
         # TODO: contribution対応
         # TODO: rerankはAPI呼び出し側の責務
         reranked_knowledges = query_result_entity.rerank(
             method=federated_knowledge_query.knowledge_rerank_method,
-            top_k=query.config.top_k,
+            top_k=federated_knowledge_query.return_num_knowledges,
             query_embedding=query.embedding,
         )
         return [KnowledgeDto.from_entity(knowledge) for knowledge in reranked_knowledges]
