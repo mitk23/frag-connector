@@ -1,8 +1,10 @@
+import asyncio
+
 from core.exceptions import ConnectorException, InternalException
 from ddd.domains.asset import AssetId
 from ddd.domains.connector import ConnectorId
 from ddd.domains.dataspace import DataspaceAssetCatalogQueryServiceIF, DataspaceKnowledgeQueryServiceIF
-from ddd.domains.knowledge import FederatedKnowledge, FederatedKnowledgeList
+from ddd.domains.knowledge import FederatedKnowledge, FederatedKnowledgeList, KnowledgeQuery
 from fastapi import status
 
 from .schemas.asset import AssetCatalogDto, DistributionContentDto
@@ -47,18 +49,30 @@ class DataspaceUsecase:
     async def retrieve_knowledges(
         self, federated_knowledge_query: FederatedKnowledgeQueryDto
     ) -> FederatedKnowledgeListDto:
-        query = federated_knowledge_query.query
-        providers = federated_knowledge_query.providers
-        if len(providers) == 0:
-            providers = ...
-
-        federated_knowledge_list: FederatedKnowledgeList = FederatedKnowledgeList()
-        for provider in providers:
-            provider_id = ConnectorId(value=provider)
-            knowledges = await self.__knowledge_query_service.execute(provider_id, query.to_entity())
+        async def __retrieve(provider_id: ConnectorId, query: KnowledgeQuery):
+            knowledges = await self.__knowledge_query_service.execute(provider_id, query)
             federated_knowledge_list.append_list(
                 [FederatedKnowledge.from_knowledge(knowledge, provider_id) for knowledge in knowledges]
             )
+
+        query = federated_knowledge_query.query
+        providers = federated_knowledge_query.providers
+
+        federated_knowledge_list: FederatedKnowledgeList = FederatedKnowledgeList()
+        try:
+            async with asyncio.TaskGroup() as tg:
+                for provider in providers:
+                    provider_id = ConnectorId(value=provider)
+                    tg.create_task(__retrieve(provider_id, query.to_entity()))
+        except* Exception as err:
+            print(f"{err.exceptions=}")
+
+        # for provider in providers:
+        #     provider_id = ConnectorId(value=provider)
+        #     knowledges = await self.__knowledge_query_service.execute(provider_id, query.to_entity())
+        #     federated_knowledge_list.append_list(
+        #         [FederatedKnowledge.from_knowledge(knowledge, provider_id) for knowledge in knowledges]
+        #     )
 
         if federated_knowledge_query.knowledge_rerank_method is not None:
             federated_knowledge_list = federated_knowledge_list.rerank(
