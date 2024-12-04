@@ -8,6 +8,7 @@ class KnowledgeQueryRequestConfig(BaseModel):
     include_embedding: bool | None = True
     # include_metadata: bool | None = True
     filter: dict[str, Any] | None = None
+    exact_search: bool | None = False
 
 
 class KnowledgeQueryRequest(BaseModel):

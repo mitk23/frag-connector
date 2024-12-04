@@ -31,6 +31,7 @@ class QdrantKnowledgeQueryService(KnowledgeQueryServiceIF):
                 limit=query_dao.limit,
                 with_vectors=query_dao.with_vectors,
                 with_payload=query_dao.with_payload,
+                search_params=query_dao.search_params,
             )
         except UnexpectedResponse as exc:
             self.__handle_error(description="Failed to query vectors from Qdrant", error=exc)

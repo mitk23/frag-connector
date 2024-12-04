@@ -39,6 +39,7 @@ class KnowledgeQueryConfigDto(BaseModel):
     include_embedding: bool | None = True
     include_metadata: bool | None = True
     filter: dict[str, Any] | None = None
+    exact_search: bool | None = False
 
     def to_entity(self) -> KnowledgeQueryConfig:
         return KnowledgeQueryConfig(
@@ -46,6 +47,7 @@ class KnowledgeQueryConfigDto(BaseModel):
             include_embedding=self.include_embedding,
             include_metadata=self.include_metadata,
             filter=self.filter,
+            exact_search=self.exact_search,
         )
 
 
