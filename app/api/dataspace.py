@@ -1,11 +1,13 @@
-from api.dependencies.usecase import get_dataspace_usecase
+from api.dependencies.usecase import get_dataspace_frag_usecase, get_dataspace_usecase
 from ddd.domains.qa import AnswerChunk, Question
-from ddd.usecases.dataspace import DataspaceUsecase
+from ddd.usecases.dataspace import DataspaceFRAGUsecase, DataspaceUsecase
+from ddd.usecases.schemas.frag import FederatedRAGQueryDto
 from ddd.usecases.schemas.knowledge import FederatedKnowledgeQueryDto
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import UUID4
 from schemas.assets import AssetCatalogResponse
+from schemas.frag import FederatedRAGRequest
 from schemas.knowledges import FederatedKnowledgeQueryRequest, FederatedKnowledgeResponse
 from schemas.qa import AnswerResponse, QuestionRequest
 
@@ -59,42 +61,14 @@ async def ask_question(
     return StreamingResponse(content=answer_response.content, media_type="application/x-ndjson")
 
 
-# @router.post("/retrieve-and-generate")
-# async def retrieve_and_generate(
-#     req: management.FRAGRequest,
-#     access_token: str = Depends(get_oauth_access_token),
-#     connector_usecase: ConnectorUsecase = Depends(get_connector_usecase),
-# ):
-#     headers = {
-#         "Authorization": f"Bearer {access_token}",
-#         "Content-Type": "application/json",
-#     }
+@router.post("/questions/frag", response_class=StreamingResponse, response_model=AnswerChunk)
+async def federated_retrieve_and_generate(
+    federated_rag_query: FederatedRAGRequest,
+    dataspace_usecase: DataspaceFRAGUsecase = Depends(get_dataspace_frag_usecase),
+):
+    federated_rag_query_dto = FederatedRAGQueryDto.model_validate(federated_rag_query, from_attributes=True)
+    print(federated_rag_query_dto)
 
-#     # Retrieval Phase
-#     federated_retriever = FederatedRetriever(
-#         retrievers=req.retrieval_providers,
-#         connector_usecase=connector_usecase,
-#         rerank=req.rerank,
-#         # include_contribution=req.include_contribution,
-#     )
-#     retrieved_vector_list = await federated_retriever.retrieve(
-#         vector=req.query_vector, top_k=req.top_k, headers=headers
-#     )
-
-#     # Construct context and prompt
-#     context = federated_retriever.extract_context_from_result(retrieved_vector_list)
-#     user_prompt = create_rag_prompt(req.query_text, context)
-#     print(user_prompt)
-
-#     # Generation Phase
-#     llm_connector_origin = connector_usecase.get_origin_from_name(req.llm_connector)
-#     if llm_connector_origin is None:
-#         # 登録済みのコネクタ名に一致しなければ、リクエストボディの値をoriginとみなす
-#         llm_connector_origin = req.llm_connector
-
-#     generation_endpoint = llm_connector_origin + __GENERATE_API_PATH
-
-#     answer = await __generate(
-#         generation_endpoint=generation_endpoint, model=req.model, user_prompt=user_prompt, headers=headers
-#     )
-#     return answer
+    answer = await dataspace_usecase.execute(federated_rag_query_dto)
+    answer_response = AnswerResponse.from_entity(answer)
+    return StreamingResponse(content=answer_response.content, media_type="application/x-ndjson")

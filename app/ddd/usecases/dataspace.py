@@ -13,6 +13,7 @@ from ddd.domains.qa import Answer, Question
 from fastapi import status
 
 from .schemas.asset import AssetCatalogDto, DistributionContentDto
+from .schemas.frag import FederatedRAGQueryDto
 from .schemas.knowledge import FederatedKnowledgeListDto, FederatedKnowledgeQueryDto
 
 
@@ -23,9 +24,9 @@ class DataspaceUsecase:
         knowledge_query_service: DataspaceKnowledgeQueryServiceIF,
         qa_service: DataspaceQAServiceIF,
     ):
-        self.__asset_catalog_query_service = asset_catalog_query_service
-        self.__knowledge_query_service = knowledge_query_service
-        self.__qa_service = qa_service
+        self.asset_catalog_query_service = asset_catalog_query_service
+        self.knowledge_query_service = knowledge_query_service
+        self.qa_service = qa_service
 
     def __handle_error(
         self, description: str, status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR, error: Exception | None = None
@@ -34,7 +35,7 @@ class DataspaceUsecase:
 
     async def list_asset_catalogs(self, provider_id: str) -> dict[str, AssetCatalogDto]:
         try:
-            catalogs = await self.__asset_catalog_query_service.find_all(ConnectorId(value=provider_id))
+            catalogs = await self.asset_catalog_query_service.find_all(ConnectorId(value=provider_id))
         except InternalException as exc:
             self.__handle_error(description=f"Failed to fetch asset catalogs from provier [{provider_id}]", error=exc)
         return {str(_id): AssetCatalogDto.from_entity(catalog) for _id, catalog in catalogs.items()}
@@ -43,7 +44,7 @@ class DataspaceUsecase:
         self, provider_id: str, asset_id: str, distribution_title: str
     ) -> DistributionContentDto:
         try:
-            distribution_content = await self.__asset_catalog_query_service.download(
+            distribution_content = await self.asset_catalog_query_service.download(
                 ConnectorId(value=provider_id), AssetId(value=asset_id), distribution_title
             )
         except InternalException as exc:
@@ -57,10 +58,9 @@ class DataspaceUsecase:
         self, federated_knowledge_query: FederatedKnowledgeQueryDto
     ) -> FederatedKnowledgeListDto:
         async def __retrieve(provider_id: ConnectorId, query: KnowledgeQuery):
-            knowledges = await self.__knowledge_query_service.execute(provider_id, query)
-            federated_knowledge_list.append_list(
-                [FederatedKnowledge.from_knowledge(knowledge, provider_id) for knowledge in knowledges]
-            )
+            knowledges = await self.knowledge_query_service.execute(provider_id, query)
+            for knowledge in knowledges:
+                federated_knowledge_list.append(FederatedKnowledge.from_knowledge(knowledge, provider_id))
 
         query = federated_knowledge_query.query
         providers = federated_knowledge_query.providers
@@ -74,24 +74,18 @@ class DataspaceUsecase:
         except* Exception as err:
             print(f"{err.exceptions=}")
 
-        # for provider in providers:
-        #     provider_id = ConnectorId(value=provider)
-        #     knowledges = await self.__knowledge_query_service.execute(provider_id, query.to_entity())
-        #     federated_knowledge_list.append_list(
-        #         [FederatedKnowledge.from_knowledge(knowledge, provider_id) for knowledge in knowledges]
-        #     )
-
         if federated_knowledge_query.knowledge_rerank_method is not None:
             federated_knowledge_list = federated_knowledge_list.rerank(
                 method=federated_knowledge_query.knowledge_rerank_method,
                 top_k=federated_knowledge_query.return_num_knowledges,
                 query_embedding=query.embedding,
             )
+
         return FederatedKnowledgeListDto.from_entity(federated_knowledge_list)
 
     async def ask_question(self, provider_id: str, question: Question) -> Answer:
         try:
-            answer = await self.__qa_service.ask(ConnectorId(value=provider_id), question)
+            answer = await self.qa_service.ask(ConnectorId(value=provider_id), question)
         except Exception as exc:
             self.__handle_error(
                 description=f"Failed to get an answer to question from provider [{provider_id}]",
@@ -99,5 +93,23 @@ class DataspaceUsecase:
             )
         return answer
 
-    async def retrieve_and_generate(self) -> str:
-        raise NotImplementedError
+
+class DataspaceFRAGUsecase(DataspaceUsecase):
+    def __init__(
+        self,
+        knowledge_query_service: DataspaceKnowledgeQueryServiceIF,
+        qa_service: DataspaceQAServiceIF,
+    ):
+        self.knowledge_query_service = knowledge_query_service
+        self.qa_service = qa_service
+
+    async def execute(self, federated_rag_query: FederatedRAGQueryDto) -> Answer:
+        federated_retrieval_query = federated_rag_query.to_retrieval_query()
+
+        federated_knowledge_list = await self.retrieve_knowledges(federated_retrieval_query)
+
+        generation_query = federated_rag_query.to_prompt(federated_knowledge_list)
+        llm_provider_id = federated_rag_query.generation.llm_provider
+
+        answer = await self.ask_question(llm_provider_id, generation_query)
+        return answer

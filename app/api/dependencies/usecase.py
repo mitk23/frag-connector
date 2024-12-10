@@ -21,7 +21,7 @@ from ddd.domains.knowledge import KnowledgeQueryServiceIF
 from ddd.domains.qa import QAServiceIF
 from ddd.usecases.asset import AssetCatalogUsecase, AssetCommandUsecase, AssetQueryUsecase
 from ddd.usecases.connector import ConnectorCommandUsecase, ConnectorQueryUsecase
-from ddd.usecases.dataspace import DataspaceUsecase
+from ddd.usecases.dataspace import DataspaceFRAGUsecase, DataspaceUsecase
 from ddd.usecases.knowledge import KnowledgeQuerySecureUsecase, KnowledgeQueryUsecase
 from ddd.usecases.qa import SimpleQAUsecase
 from fastapi import Depends
@@ -90,3 +90,10 @@ def get_dataspace_usecase(
     qa_service: DataspaceQAServiceIF = Depends(get_dataspace_qa_service),
 ) -> DataspaceUsecase:
     return DataspaceUsecase(asset_catalog_query_service, knowledge_query_service, qa_service)
+
+
+def get_dataspace_frag_usecase(
+    knowledge_query_service: DataspaceKnowledgeQueryServiceIF = Depends(get_dataspace_knowledge_query_service),
+    qa_service: DataspaceQAServiceIF = Depends(get_dataspace_qa_service),
+) -> DataspaceUsecase:
+    return DataspaceFRAGUsecase(knowledge_query_service, qa_service)
