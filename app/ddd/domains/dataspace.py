@@ -3,6 +3,7 @@ import abc
 from ddd.domains.asset import AssetCatalog, AssetId, DistributionContent
 from ddd.domains.connector import ConnectorId
 from ddd.domains.knowledge import Knowledge, KnowledgeQuery
+from ddd.domains.qa import Answer, Question
 
 
 class DataspaceAssetCatalogQueryServiceIF(abc.ABC):
@@ -26,6 +27,8 @@ class DataspaceKnowledgeQueryServiceIF(abc.ABC):
     async def execute(self, provider_id: ConnectorId, query: KnowledgeQuery) -> list[Knowledge]:
         raise NotImplementedError
 
-    # @abc.abstractmethod
-    # async def query_llm(self):
-    #     raise NotImplementedError
+
+class DataspaceQAServiceIF(abc.ABC):
+    @abc.abstractmethod
+    async def ask(self, provider_id: ConnectorId, question: Question) -> Answer:
+        raise NotImplementedError

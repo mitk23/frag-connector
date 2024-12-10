@@ -5,17 +5,25 @@ from api.dependencies.infrastructure import (
     get_connector_repository,
     get_dataspace_asset_catalog_query_service,
     get_dataspace_knowledge_query_service,
+    get_dataspace_qa_service,
     get_knowledge_query_service,
+    get_qa_service,
 )
 from ddd.domains.asset import AssetRepositoryIF
 from ddd.domains.authorization import AuthRepositoryIF
 from ddd.domains.connector import ConnectorRepositoryIF
-from ddd.domains.dataspace import DataspaceAssetCatalogQueryServiceIF, DataspaceKnowledgeQueryServiceIF
+from ddd.domains.dataspace import (
+    DataspaceAssetCatalogQueryServiceIF,
+    DataspaceKnowledgeQueryServiceIF,
+    DataspaceQAServiceIF,
+)
 from ddd.domains.knowledge import KnowledgeQueryServiceIF
+from ddd.domains.qa import QAServiceIF
 from ddd.usecases.asset import AssetCatalogUsecase, AssetCommandUsecase, AssetQueryUsecase
 from ddd.usecases.connector import ConnectorCommandUsecase, ConnectorQueryUsecase
 from ddd.usecases.dataspace import DataspaceUsecase
 from ddd.usecases.knowledge import KnowledgeQuerySecureUsecase, KnowledgeQueryUsecase
+from ddd.usecases.qa import SimpleQAUsecase
 from fastapi import Depends
 
 
@@ -70,27 +78,15 @@ def get_knowledge_query_secure_usecase(
     )
 
 
+def get_simple_qa_usecase(qa_service: QAServiceIF = Depends(get_qa_service)) -> SimpleQAUsecase:
+    return SimpleQAUsecase(qa_service=qa_service)
+
+
 def get_dataspace_usecase(
     asset_catalog_query_service: DataspaceAssetCatalogQueryServiceIF = Depends(
         get_dataspace_asset_catalog_query_service
     ),
     knowledge_query_service: DataspaceKnowledgeQueryServiceIF = Depends(get_dataspace_knowledge_query_service),
-):
-    return DataspaceUsecase(asset_catalog_query_service, knowledge_query_service)
-
-
-# def get_llm_interface(settings: Settings = Depends(get_settings)):
-#     service = settings.llm_service
-
-#     if service == "openai":
-#         return OpenAIInterface(
-#             api_key=settings.llm_api_key,
-#             api_base_url=settings.llm_api_base_url,
-#         )
-#     elif service == "ollama":
-#         return OllamaInterface(
-#             api_key=settings.llm_api_key,
-#             api_base_url=settings.llm_api_base_url,
-#         )
-#     else:
-#         raise ValueError(f"Unsupported vector db service: {service}")
+    qa_service: DataspaceQAServiceIF = Depends(get_dataspace_qa_service),
+) -> DataspaceUsecase:
+    return DataspaceUsecase(asset_catalog_query_service, knowledge_query_service, qa_service)
