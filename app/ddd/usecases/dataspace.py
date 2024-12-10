@@ -3,8 +3,13 @@ import asyncio
 from core.exceptions import ConnectorException, InternalException
 from ddd.domains.asset import AssetId
 from ddd.domains.connector import ConnectorId
-from ddd.domains.dataspace import DataspaceAssetCatalogQueryServiceIF, DataspaceKnowledgeQueryServiceIF
+from ddd.domains.dataspace import (
+    DataspaceAssetCatalogQueryServiceIF,
+    DataspaceKnowledgeQueryServiceIF,
+    DataspaceQAServiceIF,
+)
 from ddd.domains.knowledge import FederatedKnowledge, FederatedKnowledgeList, KnowledgeQuery
+from ddd.domains.qa import Answer, Question
 from fastapi import status
 
 from .schemas.asset import AssetCatalogDto, DistributionContentDto
@@ -16,9 +21,11 @@ class DataspaceUsecase:
         self,
         asset_catalog_query_service: DataspaceAssetCatalogQueryServiceIF,
         knowledge_query_service: DataspaceKnowledgeQueryServiceIF,
+        qa_service: DataspaceQAServiceIF,
     ):
         self.__asset_catalog_query_service = asset_catalog_query_service
         self.__knowledge_query_service = knowledge_query_service
+        self.__qa_service = qa_service
 
     def __handle_error(
         self, description: str, status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR, error: Exception | None = None
@@ -82,8 +89,15 @@ class DataspaceUsecase:
             )
         return FederatedKnowledgeListDto.from_entity(federated_knowledge_list)
 
-    async def generate_text(self) -> str:
-        raise NotImplementedError
+    async def ask_question(self, provider_id: str, question: Question) -> Answer:
+        try:
+            answer = await self.__qa_service.ask(ConnectorId(value=provider_id), question)
+        except Exception as exc:
+            self.__handle_error(
+                description=f"Failed to get an answer to question from provider [{provider_id}]",
+                error=exc,
+            )
+        return answer
 
     async def retrieve_and_generate(self) -> str:
         raise NotImplementedError

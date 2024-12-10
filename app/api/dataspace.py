@@ -1,12 +1,13 @@
-import httpx
 from api.dependencies.usecase import get_dataspace_usecase
+from ddd.domains.qa import AnswerChunk, Question
 from ddd.usecases.dataspace import DataspaceUsecase
 from ddd.usecases.schemas.knowledge import FederatedKnowledgeQueryDto
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import UUID4
 from schemas.assets import AssetCatalogResponse
 from schemas.knowledges import FederatedKnowledgeQueryRequest, FederatedKnowledgeResponse
+from schemas.qa import AnswerResponse, QuestionRequest
 
 router = APIRouter()
 
@@ -49,32 +50,13 @@ async def retrieve_knowledges(
     ]
 
 
-# @router.post("/generate")
-# async def generate(
-#     req: management.GenerateRequest,
-#     access_token: str = Depends(get_oauth_access_token),
-#     connector_usecase: ConnectorUsecase = Depends(get_connector_usecase),
-# ):
-#     llm_connector_origin = connector_usecase.get_origin_from_name(req.llm_connector)
-#     if llm_connector_origin is None:
-#         # 登録済みのコネクタ名に一致しなければ、リクエストボディの値をoriginとみなす
-#         llm_connector_origin = req.llm_connector
-
-#     generation_endpoint = llm_connector_origin + __GENERATE_API_PATH
-
-#     headers = {
-#         "Authorization": f"Bearer {access_token}",
-#         "Content-Type": "application/json",
-#     }
-
-#     answer = await __generate(
-#         generation_endpoint=generation_endpoint,
-#         model=req.model,
-#         user_prompt=req.user_prompt,
-#         system_prompt=req.system_prompt,
-#         headers=headers,
-#     )
-#     return answer
+@router.post("/questions", response_class=StreamingResponse, response_model=AnswerChunk)
+async def ask_question(
+    provider_id: str, question: QuestionRequest, dataspace_usecase: DataspaceUsecase = Depends(get_dataspace_usecase)
+):
+    answer = await dataspace_usecase.ask_question(provider_id, Question.model_validate(question, from_attributes=True))
+    answer_response = AnswerResponse.from_entity(answer)
+    return StreamingResponse(content=answer_response.content, media_type="application/x-ndjson")
 
 
 # @router.post("/retrieve-and-generate")
@@ -116,50 +98,3 @@ async def retrieve_knowledges(
 #         generation_endpoint=generation_endpoint, model=req.model, user_prompt=user_prompt, headers=headers
 #     )
 #     return answer
-
-
-async def __generate(
-    generation_endpoint: str,
-    model: str,
-    user_prompt: str,
-    system_prompt: str | None = None,
-    headers: dict = None,
-) -> dict[str, str]:
-    json = {
-        "model": model,
-        "user_prompt": user_prompt,
-        "system_prompt": system_prompt,
-    }
-
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.post(generation_endpoint, headers=headers, json=json)
-            response.raise_for_status()
-        except httpx.RequestError as err:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail={
-                    "message": f"Error while requesting {err.request.url!r}",
-                },
-            )
-        except httpx.HTTPStatusError as err:
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail={
-                    "message": f"Error in LLM connector: {err.request.url!r}",
-                    "error": err.response.json(),
-                },
-            )
-    return response.json()
-
-
-def create_rag_prompt(query: str, context: list[str]):
-    return f"""
-Context information is below.
----------------------
-{'\n\n'.join(context)}
----------------------
-Given the context information, answer the query.
-Query: {query}
-Answer:
-"""
