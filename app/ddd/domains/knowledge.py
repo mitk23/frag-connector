@@ -1,6 +1,6 @@
 import abc
 import heapq
-from typing import Any, ClassVar, Generator, Literal
+from typing import Any, ClassVar, Literal
 
 import numpy as np
 from ddd.domains.connector import ConnectorId
@@ -66,11 +66,14 @@ class FederatedKnowledgeList(BaseModel):
         self.__index += 1
         return value
 
+    def __len__(self) -> int:
+        return len(self.knowledge_list)
+
+    def __getitem__(self, index) -> FederatedKnowledge:
+        return self.knowledge_list[index]
+
     def append(self, knowledge: FederatedKnowledge) -> None:
         self.knowledge_list.append(knowledge)
-
-    def append_list(self, knowledges: list[FederatedKnowledge]) -> None:
-        self.knowledge_list += knowledges
 
     def rerank(
         self, method: KnowledgeRerankMethod, top_k: int = 5, query_embedding: list[float] | None = None
@@ -128,23 +131,3 @@ class KnowledgeQueryServiceIF(abc.ABC):
     @abc.abstractmethod
     async def fetch(self, knowledge_id_list: list[str]) -> list[Knowledge]:
         raise NotImplementedError
-
-
-class Question(BaseModel):
-    text: str
-
-
-class Answer(BaseModel):
-    text: Generator[str, None, None]
-
-
-class QAServiceIF(abc.ABC):
-    @abc.abstractmethod
-    async def ask(self, question: Question, knowledges: list[Knowledge] | None) -> Answer:
-        raise NotImplementedError
-
-
-# class LLMQuery(BaseModel):
-#     model: str
-#     user_prompt: str
-#     system_prompt: str | None = None

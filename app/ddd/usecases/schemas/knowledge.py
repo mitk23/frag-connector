@@ -103,6 +103,12 @@ class FederatedKnowledgeListDto(BaseModel):
         self.__index += 1
         return value
 
+    def __len__(self) -> int:
+        return len(self.knowledge_list)
+
+    def __getitem__(self, index) -> FederatedKnowledgeDto:
+        return self.knowledge_list[index]
+
     @staticmethod
     def from_entity(knowledge_list: FederatedKnowledgeList) -> "FederatedKnowledgeListDto":
         return FederatedKnowledgeListDto(

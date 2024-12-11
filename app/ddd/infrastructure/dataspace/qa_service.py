@@ -1,3 +1,4 @@
+import time
 from collections.abc import AsyncGenerator
 from typing import Any
 
@@ -29,12 +30,15 @@ class DataspaceQAServiceImpl(DataspaceQAServiceIF):
     async def __http_post_stream(
         self, _url: str, _headers: dict[str, Any], _json: dict[str, Any]
     ) -> AsyncGenerator[AnswerChunk]:
+        time_start = time.perf_counter()
         async with httpx.AsyncClient() as client:
             async with client.stream("POST", url=_url, headers=_headers, json=_json) as response:
                 async for chunk in response.aiter_lines():
                     yield AnswerChunk.model_validate_json(chunk)
+        print(f"[{self.__class__.__name__}.__http_post] {time.perf_counter() - time_start:.5f} [sec]")
 
     async def ask(self, provider_id: ConnectorId, question: Question) -> Answer:
+        time_start = time.perf_counter()
         question_endpoint = await self.__get_question_endpoint(provider_id)
 
         answer_chunk_stream = self.__http_post_stream(
@@ -42,4 +46,5 @@ class DataspaceQAServiceImpl(DataspaceQAServiceIF):
             _headers={"Authorization": f"Bearer {self.__dataspace_access_token}"},
             _json=question.model_dump(),
         )
+        print(f"[{self.__class__.__name__}.ask] {time.perf_counter() - time_start:.5f} [sec]")
         return Answer(content=answer_chunk_stream)
