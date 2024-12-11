@@ -1,3 +1,5 @@
+import time
+
 from core.exceptions import ConnectorException
 from ddd.domains import domain_service
 from ddd.domains.asset import AssetId, AssetRepositoryIF
@@ -18,12 +20,15 @@ class KnowledgeQueryUsecase:
         raise ConnectorException(status_code=status_code, description=description, upstream_exc=error)
 
     async def execute(self, query: KnowledgeQueryDto) -> list[KnowledgeDto]:
+        time_start = time.perf_counter()
+
         query_entity = query.to_entity()
         try:
             knowledge_entity_list = await self.__knowledge_query_service.execute(query_entity)
         except Exception as exc:
             self.__handle_error(error=exc, description="Failed to query knowledge")
 
+        print(f"[{self.__class__.__name__}.execute] {time.perf_counter() - time_start:.5f} [sec]")
         return [KnowledgeDto.from_entity(kg_entity) for kg_entity in knowledge_entity_list]
 
 
@@ -71,7 +76,9 @@ class KnowledgeQuerySecureUsecase(KnowledgeQueryUsecase):
         return authorized_knowledge_list
 
     async def execute(self, query: KnowledgeQueryDto) -> list[KnowledgeDto]:
+        time_start = time.perf_counter()
         knowledge_dto_list = await super().execute(query)
 
         authorized_knowledge_dto_list = await self.__authorize_knowledges(knowledge_dto_list)
+        print(f"[{self.__class__.__name__}.execute] {time.perf_counter() - time_start:.5f} [sec]")
         return authorized_knowledge_dto_list
