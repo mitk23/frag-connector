@@ -213,7 +213,7 @@ class AssetCatalogUsecase:
                 status_code=status.HTTP_404_NOT_FOUND, description=f"Distribution [{distribution_title}] URL not found"
             )
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(http2=True) as client:
             try:
                 response = await client.get(str(distribution.url))
                 response.raise_for_status()

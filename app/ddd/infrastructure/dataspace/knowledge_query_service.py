@@ -29,7 +29,7 @@ class DataspaceKnowledgeQueryServiceImpl(DataspaceKnowledgeQueryServiceIF):
 
     async def __http_post(self, url: str, headers: dict[str, Any], json: dict[str, Any]) -> httpx.Response:
         time_start = time.perf_counter()
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(http2=True) as client:
             try:
                 response = await client.post(url, headers=headers, json=json)
                 response.raise_for_status()

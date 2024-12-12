@@ -31,7 +31,7 @@ class DataspaceQAServiceImpl(DataspaceQAServiceIF):
         self, _url: str, _headers: dict[str, Any], _json: dict[str, Any]
     ) -> AsyncGenerator[AnswerChunk]:
         time_start = time.perf_counter()
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(http2=True) as client:
             async with client.stream("POST", url=_url, headers=_headers, json=_json) as response:
                 async for chunk in response.aiter_lines():
                     yield AnswerChunk.model_validate_json(chunk)
