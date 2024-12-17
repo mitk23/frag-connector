@@ -10,7 +10,7 @@ from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBea
 api_key_header = APIKeyHeader(
     name="X-Management-Api-Key",
     scheme_name="Management API Key",
-    description="API key to access connector management API",
+    description="コネクタAPIにアクセスするためのAPIキー",
     auto_error=True,
 )
 
