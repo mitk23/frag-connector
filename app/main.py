@@ -3,7 +3,24 @@ from core.exceptions import ConnectorException, InternalException
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 
-app = FastAPI()
+app = FastAPI(
+    title="F-RAG Connector",
+    version="0.2.0",
+    openapi_tags=[
+        {
+            "name": "Asset Management",
+            "description": "コネクタが提供するアセットの管理に関するAPI（データ提供者）",
+        },
+        {
+            "name": "Counter Connector Management",
+            "description": "データスペース上の接続先コネクタの管理に関するAPI（データ利用者/データ提供者）",
+        },
+        {
+            "name": "Dataspace",
+            "description": "データスペースを通じたデータ共有や連邦型RAGのためのAPI（データ利用者）",
+        },
+    ],
+)
 
 app.include_router(api_router, prefix="/api")
 

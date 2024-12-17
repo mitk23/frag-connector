@@ -6,13 +6,13 @@ from . import assets, connectors, dataspace, inter_connector
 api_router = APIRouter()
 
 api_router.include_router(
-    assets.router, prefix="/management/assets", tags=["Manage Assets"], dependencies=[Depends(verify_api_key)]
+    assets.router, prefix="/management/assets", tags=["Asset Management"], dependencies=[Depends(verify_api_key)]
 )
 
 api_router.include_router(
     connectors.router,
     prefix="/management/connectors",
-    tags=["Manage Connectors"],
+    tags=["Counter Connector Management"],
     dependencies=[Depends(verify_api_key)],
 )
 
@@ -25,4 +25,5 @@ api_router.include_router(
     prefix="/inter-connector",
     tags=["Inter-Connector Protocol"],
     dependencies=[Depends(verify_bearer_token)],
+    include_in_schema=False,
 )
