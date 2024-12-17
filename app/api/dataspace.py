@@ -67,7 +67,6 @@ async def federated_retrieve_and_generate(
     dataspace_usecase: DataspaceFRAGUsecase = Depends(get_dataspace_frag_usecase),
 ):
     federated_rag_query_dto = FederatedRAGQueryDto.model_validate(federated_rag_query, from_attributes=True)
-    print(federated_rag_query_dto)
 
     answer = await dataspace_usecase.execute(federated_rag_query_dto)
     answer_response = AnswerResponse.from_entity(answer)

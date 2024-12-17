@@ -10,7 +10,7 @@ services:
       - ./.env
     volumes:
       - "./app/:/app/"
-    command: 'python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000'
+    command: 'python -m hypercorn main:app --bind 0.0.0.0:8000'
     restart: always
     ports:
       - ${MY_CONNECTOR_PORT}:8000

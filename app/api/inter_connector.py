@@ -60,7 +60,7 @@ async def retrieve_knowledge(
     query_dto = KnowledgeQueryDto.model_validate(query, from_attributes=True)
 
     knowledge_dto_list = await knowledge_query_usecase.execute(query_dto)
-    print(f"[retrieve_knowledge] {time.perf_counter() - time_start} [sec]")
+    print(f"[retrieve_knowledge] {time.perf_counter() - time_start:.5f} [sec]")
     return [KnowledgeResponse.model_validate(knowledge, from_attributes=True) for knowledge in knowledge_dto_list]
 
 

@@ -40,7 +40,7 @@ class DataspaceAssetCatalogQueryServiceImpl(DataspaceAssetCatalogQueryServiceIF)
 
     async def __http_get(self, url: str, headers: dict[str, Any]) -> Any:
         # TODO: HTTPエラーオブジェクトの受け渡しの方法も考える（err.response.json()を表示できるようにしたい）
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(http2=True) as client:
             try:
                 response = await client.get(url, headers=headers)
                 response.raise_for_status()
@@ -54,7 +54,7 @@ class DataspaceAssetCatalogQueryServiceImpl(DataspaceAssetCatalogQueryServiceIF)
         self, url: str, headers: dict[str, Any], params: dict[str, Any]
     ) -> AsyncGenerator[bytes, None]:
         # TODO: HTTPエラーオブジェクトの受け渡しの方法も考える（err.response.json()を表示できるようにしたい）
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(http2=True) as client:
             async with client.stream("GET", url=url, headers=headers, params=params) as response:
                 # first: status code
                 yield response.status_code
